@@ -16,18 +16,6 @@ type SuggestionOption = {
 
 const getProductLabel = (p: any) => (p?.manufacturer ? `${p.name} (${p.manufacturer})` : p?.name);
 
-const parseStrengthString = (s?: string | null) => {
-  if (!s) return null;
-  const m = String(s)
-    .trim()
-    .match(/^([\d.,]+)\s*(.+)$/);
-  if (!m) return null;
-  return {
-    value: m[1].replace(",", "."),
-    unit: m[2].trim(),
-  };
-};
-
 export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
   const productIndex = useMemo(() => buildProductIndex(), []);
 
@@ -79,7 +67,6 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
   const numericQuery = value.trim().match(/^0*(\d+)/)?.[1] ?? null;
   const varenummerHit = numericQuery ? productByVarenummer.get(numericQuery) : null;
   const resolvedProduct = parsed.product ?? varenummerHit?.product ?? null;
-  const resolvedStrength = parsed.strength ?? parseStrengthString(varenummerHit?.strength);
 
   const lastAutoConvertedRef = useRef<string | null>(null);
 
