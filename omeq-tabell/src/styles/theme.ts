@@ -54,6 +54,11 @@ const theme = createTheme({
       fontSize: "1.2rem",
       fontWeight: 600,
     },
+    h4: {
+      fontSize: "2rem",
+      fontWeight: 700,
+      letterSpacing: "-0.01em",
+    },
     body1: {
       fontSize: "0.95rem",
     },
@@ -63,12 +68,27 @@ const theme = createTheme({
   },
 
   shape: {
-    borderRadius: 6,
+    borderRadius: 12,
   },
 
   spacing: 8,
 
   components: {
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          border: "1px solid rgba(17, 24, 39, 0.08)",
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#FFFFFF",
+          borderRadius: 12,
+        },
+      },
+    },
     MuiTableHead: {
       styleOverrides: {
         root: {
