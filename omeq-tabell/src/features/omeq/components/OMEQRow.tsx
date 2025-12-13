@@ -103,6 +103,11 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     }
   }, [parsed.product, result.reason]);
 
+  const totalText = useMemo(() => {
+    if (totalMg == null) return "";
+    return String(Math.round((totalMg + Number.EPSILON) * 100) / 100);
+  }, [totalMg]);
+
   return (
     <Box className={styles.omeqRow}>
       <MedicationInput
@@ -129,11 +134,13 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         fullWidth
       />
 
-      {totalMg != null && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Total: {Math.round((totalMg + Number.EPSILON) * 100) / 100} mg
-        </Typography>
-      )}
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ mt: 0.5, visibility: totalMg != null ? "visible" : "hidden" }}
+      >
+        {totalMg != null ? `Total: ${totalText} mg` : "Total: 0 mg"}
+      </Typography>
 
       <TextField label="OMEQ" value={omeqText} InputProps={{ readOnly: true }} fullWidth />
 
