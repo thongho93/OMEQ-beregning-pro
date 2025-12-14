@@ -52,7 +52,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["transdermal"],
     omeqFactor: 2.22,
     isPatch: true,
-    helpText: "Ingen utregning nødvendig.",
+    helpText: "For depotplaster er døgndose ikke nødvendig. Velg riktig styrke.",
   },
   {
     id: "dihydrokodein-oral",
@@ -77,7 +77,8 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["sublingval", "intranasal"],
     omeqFactor: 250,
     isShortActing: true,
-    helpText: "100 mcg = 0,1 mg. Er døgndosen 200 mcg, skriv inn 0,2.",
+    helpText:
+      "Styrken er allerede omregnet fra µg til mg. Legg inn døgndose som antall tabletter/doser (nesespray).",
   },
   {
     id: "fentanyl-transdermal",
@@ -86,7 +87,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["transdermal"],
     omeqFactor: 2.4,
     isPatch: true,
-    helpText: "Ingen utregning nødvendig.",
+    helpText: "For depotplaster er døgndose ikke nødvendig. Velg riktig styrke.",
   },
   {
     id: "hydromorfon-oral",

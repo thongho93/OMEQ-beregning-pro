@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Box, TextField, Typography } from "@mui/material";
+import { Alert, Box, TextField, Typography } from "@mui/material";
 
 import styles from "../../../styles/app.module.css";
 
@@ -108,6 +108,18 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     }
   }, [parsed.product, result.reason, isPatch]);
 
+  const infoText = useMemo(() => {
+    if (!matchedOpioid?.helpText) return "";
+
+    // Bruk helpText også for depotplaster
+    if (isPatch) return matchedOpioid.helpText;
+
+    // Vis kun når produktet er gjenkjent og raden ellers er brukbar
+    if (result.reason === "ok" || result.reason === "missing-input") return matchedOpioid.helpText;
+
+    return "";
+  }, [isPatch, matchedOpioid?.helpText, result.reason]);
+
   const totalText = useMemo(() => {
     if (totalMg == null) return "";
     return String(Math.round((totalMg + Number.EPSILON) * 100) / 100);
@@ -198,6 +210,11 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         <Typography variant="body2" color="text.secondary">
           {statusText}
         </Typography>
+      )}
+      {!!infoText && (
+        <Alert severity="info" variant="outlined" sx={{ mt: 1, borderColor: "primary.main" }}>
+          {infoText}
+        </Alert>
       )}
     </Box>
   );

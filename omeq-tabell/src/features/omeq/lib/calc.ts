@@ -23,10 +23,17 @@ const strengthToMg = (
 
   const unit = String(strength.unit).trim().toLowerCase();
 
-  // Støtter kun enkle former foreløpig
-  if (unit === "mg") return value;
-  if (unit === "g") return value * 1000;
-  if (unit === "µg" || unit === "ug") return value / 1000;
+  // Støtter kun enkle former foreløpig (inkl. varianter som "µg/dose")
+  const isMg = unit === "mg" || unit.includes("mg");
+  const isG = unit === "g" || (unit.includes("g") && !unit.includes("mg") && !unit.includes("µg") && !unit.includes("ug") && !unit.includes("mcg"));
+  const isMcg = unit.includes("µg") || unit.includes("ug") || unit.includes("mcg");
+
+  // Unngå å feiltolke plasterstyrke (µg/time) som mg-dosering
+  const isPerHour = unit.includes("/time") || unit.includes("/t") || unit.includes("time");
+
+  if (isMg) return value;
+  if (isG) return value * 1000;
+  if (isMcg && !isPerHour) return value / 1000;
 
   // mg/ml og andre kombinasjoner håndteres senere
   return null;
@@ -71,7 +78,8 @@ export function calculateOMEQ({ product, dailyDose, strength }: CalcInput) {
   const routeLower = route.toLowerCase();
 
   // Ikke støttet ennå (depotplaster håndteres separat lenger ned)
-  if (form === "sublingvalfilm" || form === "sublingvaltablett") {
+  // Sublingvaltablett (f.eks. Abstral/Temgesic) beregnes som vanlig.
+  if (form === "sublingvalfilm") {
     return { omeq: null, reason: "unsupported-form" } as const;
   }
 
