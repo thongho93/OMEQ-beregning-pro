@@ -142,6 +142,16 @@ const findByProductNumber = (input: string): VariantHit | null => {
   return null;
 };
 
+const extractCodeineStrengthFromCombo = (text: string): Strength | null => {
+  const m = text.match(/\/\s*(\d+(?:[.,]\d+)?)\s*mg\b/i);
+  if (!m) return null;
+
+  const value = Number(m[1].replace(",", "."));
+  if (!Number.isFinite(value)) return null;
+
+  return { value, unit: "mg" };
+};
+
 export const parseMedicationInput = (
   input: string,
   products: ProductIndexItem[]
@@ -159,7 +169,16 @@ export const parseMedicationInput = (
   // - else, if varenummer matched, use the strength from that variant
   // - else null
   const typedStrength = extractStrength(input);
-  const strength = typedStrength ?? parseStrengthString(varenummerHit?.strengthText);
+  let strength = typedStrength ?? parseStrengthString(varenummerHit?.strengthText);
+
+  // Special case: N02AJ06 is a combination product (paracetamol/kodein).
+  // Use ONLY kodein strength (mg after "/") for OMEQ calculation.
+  if (product?.atcCode === "N02AJ06") {
+    strength =
+      extractCodeineStrengthFromCombo(input) ??
+      extractCodeineStrengthFromCombo(varenummerHit?.strengthText ?? "") ??
+      strength;
+  }
 
   return {
     product,

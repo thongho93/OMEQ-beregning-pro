@@ -75,13 +75,6 @@ export function calculateOMEQ({ product, dailyDose, strength }: CalcInput) {
     return { omeq: null, reason: "unsupported-form" } as const;
   }
 
-  if (
-    (atc === "N02AJ06" || atc === "R05DA04") &&
-    (routeLower.includes("oral") || routeLower.includes("rekt"))
-  ) {
-    return { omeq: null, reason: "unsupported-codeine" };
-  }
-
   if (atc === "N07BC02" && routeLower.includes("oral")) {
     return { omeq: null, reason: "unsupported-methadone" };
   }
