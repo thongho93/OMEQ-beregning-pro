@@ -3,7 +3,7 @@ import { Box, Container, Divider, IconButton, Paper, Typography, Tooltip } from 
 import AddIcon from "@mui/icons-material/Add";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 
-import styles from "../styles/App.module.css";
+import styles from "../styles/app.module.css";
 
 import { OMEQRow, type OMEQRowValue } from "../features/omeq/components/OMEQRow";
 import { buildProductIndex, parseMedicationInput } from "../features/omeq/lib/parseMedicationInput";
