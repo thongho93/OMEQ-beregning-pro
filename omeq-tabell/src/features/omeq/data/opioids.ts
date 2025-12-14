@@ -133,7 +133,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["oral", "rektal"],
     omeqFactor: 0.1,
     helpText:
-      "Vær oppmerksom på at det er døgndosen i mg av virkestoffet kodein som må legges inn.",
+      "Styke til kodein er allerede valgt. Legg inn døgndose som antall tabletter/stikkpiller.",
   },
   {
     id: "metadon-oral",

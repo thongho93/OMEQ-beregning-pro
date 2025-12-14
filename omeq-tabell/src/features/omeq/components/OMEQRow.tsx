@@ -40,6 +40,8 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     );
   }, [parsed.product]);
 
+  const substanceText = matchedOpioid?.substance ?? "";
+
   const isPatch = parsed.product?.form?.toLowerCase() === "depotplaster";
 
   const dailyDose = useMemo(() => {
@@ -127,10 +129,19 @@ export const OMEQRow = ({ value, onChange }: Props) => {
 
   return (
     <Box className={styles.omeqRow}>
-      <MedicationInput
-        value={value.medicationText}
-        onChange={(text) => onChange({ ...value, medicationText: text })}
-      />
+      <Box sx={{ display: "flex", flexDirection: "column", width: "100%" }}>
+        <MedicationInput
+          value={value.medicationText}
+          onChange={(text) => onChange({ ...value, medicationText: text })}
+        />
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ mt: 0.5, visibility: substanceText ? "visible" : "hidden" }}
+        >
+          Virkestoff: {substanceText || "-"}
+        </Typography>
+      </Box>
 
       <Box className={styles.ratioBox}>
         <TextField
