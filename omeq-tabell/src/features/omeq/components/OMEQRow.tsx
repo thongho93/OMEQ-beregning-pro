@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Box, TextField, Typography } from "@mui/material";
 
-import styles from "../../../styles/App.module.css";
+import styles from "../../../styles/app.module.css";
 
 import { MedicationInput } from "./MedicationInput";
 import { buildProductIndex, parseMedicationInput } from "../lib/parseMedicationInput";
