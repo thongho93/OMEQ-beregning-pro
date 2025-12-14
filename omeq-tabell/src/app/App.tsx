@@ -78,7 +78,7 @@ function App() {
         </Typography>
 
         <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-          Lim inn preparatnavn og styrke, og legg inn dosering for beregning
+          Lim inn varenummeret, og legg inn total døgndose for beregning.
         </Typography>
 
         {rows.map((r, idx) => (

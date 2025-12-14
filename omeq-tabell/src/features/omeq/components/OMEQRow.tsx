@@ -26,13 +26,6 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     () => parseMedicationInput(value.medicationText, productIndex),
     [value.medicationText, productIndex]
   );
-  console.log("PARSED INPUT", {
-    input: value.medicationText,
-    product: parsed.product,
-    form: parsed.product?.form,
-    atc: parsed.product?.atcCode,
-    strength: parsed.strength,
-  });
 
   const matchedOpioid = useMemo(() => {
     if (!parsed.product) return null;

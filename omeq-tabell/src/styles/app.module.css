@@ -36,7 +36,7 @@
 /* OMEQ row layout */
 .omeqRow {
   display: grid;
-  grid-template-columns: 2fr 0.6fr 1fr 1fr;
+  grid-template-columns: 2.4fr 0.6fr 0.6fr 0.5fr;
   grid-template-rows: auto auto auto;
   gap: 12px 16px;
   align-items: start;
