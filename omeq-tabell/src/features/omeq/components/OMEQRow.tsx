@@ -145,7 +145,7 @@ export const OMEQRow = ({ value, onChange }: Props) => {
 
       <TextField
         label={isPatch ? "Ingen døgndose" : "Døgndose"}
-        placeholder={isPatch ? "" : parsed.strength?.perHour ? "F.eks. 25" : "F.eks. 200"}
+        placeholder={isPatch ? "" : parsed.strength?.perHour ? "F.eks. 25" : "F.eks. 2 tabletter"}
         value={isPatch ? "" : value.doseText}
         onChange={(e) => onChange({ ...value, doseText: e.target.value })}
         inputProps={{ inputMode: "decimal" }}
