@@ -26,6 +26,13 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     () => parseMedicationInput(value.medicationText, productIndex),
     [value.medicationText, productIndex]
   );
+  console.log("PARSED INPUT", {
+    input: value.medicationText,
+    product: parsed.product,
+    form: parsed.product?.form,
+    atc: parsed.product?.atcCode,
+    strength: parsed.strength,
+  });
 
   const matchedOpioid = useMemo(() => {
     if (!parsed.product) return null;
@@ -39,6 +46,8 @@ export const OMEQRow = ({ value, onChange }: Props) => {
       ) ?? null
     );
   }, [parsed.product]);
+
+  const isPatch = parsed.product?.form?.toLowerCase() === "depotplaster";
 
   const dailyDose = useMemo(() => {
     const raw = value.doseText.trim();
@@ -61,17 +70,18 @@ export const OMEQRow = ({ value, onChange }: Props) => {
   }, [parsed.strength]);
 
   const totalMg = useMemo(() => {
+    if (isPatch) return null;
     if (dailyDose == null || strengthMg == null) return null;
     return dailyDose * strengthMg;
-  }, [dailyDose, strengthMg]);
+  }, [isPatch, dailyDose, strengthMg]);
 
   const result = useMemo(() => {
     return calculateOMEQ({
       product: parsed.product ?? null,
-      dailyDose,
+      dailyDose: isPatch ? null : dailyDose,
       strength: parsed.strength ?? null,
     });
-  }, [parsed.product, parsed.strength, dailyDose]);
+  }, [parsed.product, parsed.strength, dailyDose, isPatch]);
 
   const omeqText = useMemo(() => {
     if (result.omeq == null) return "";
@@ -84,9 +94,11 @@ export const OMEQRow = ({ value, onChange }: Props) => {
 
     switch (result.reason) {
       case "missing-input":
-        return "Fyll inn døgndose for å beregne OMEQ.";
+        return isPatch ? "" : "Fyll inn døgndose for å beregne OMEQ.";
       case "missing-strength":
-        return "Fant ikke styrke (mg) for preparatet.";
+        return isPatch
+          ? "Fant ikke plasterstyrke (µg/time) for preparatet."
+          : "Fant ikke styrke (mg) for preparatet.";
       case "unsupported-form":
       case "unsupported-codeine":
       case "unsupported-methadone":
@@ -101,7 +113,7 @@ export const OMEQRow = ({ value, onChange }: Props) => {
       default:
         return "";
     }
-  }, [parsed.product, result.reason]);
+  }, [parsed.product, result.reason, isPatch]);
 
   const totalText = useMemo(() => {
     if (totalMg == null) return "";
@@ -139,12 +151,13 @@ export const OMEQRow = ({ value, onChange }: Props) => {
       </Box>
 
       <TextField
-        label="Døgndose"
-        placeholder={parsed.strength?.perHour ? "F.eks. 25" : "F.eks. 200"}
-        value={value.doseText}
+        label={isPatch ? "Ingen døgndose" : "Døgndose"}
+        placeholder={isPatch ? "" : parsed.strength?.perHour ? "F.eks. 25" : "F.eks. 200"}
+        value={isPatch ? "" : value.doseText}
         onChange={(e) => onChange({ ...value, doseText: e.target.value })}
         inputProps={{ inputMode: "decimal" }}
         fullWidth
+        disabled={isPatch}
         sx={{
           "& .MuiOutlinedInput-root": {
             "& fieldset": {

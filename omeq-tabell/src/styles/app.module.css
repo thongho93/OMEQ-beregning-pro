@@ -130,3 +130,39 @@
     justify-content: flex-start;
   }
 }
+
+.totalOmeqBox {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Wrapper to center Total OMEQ above action buttons */
+.totalOmeqWrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.totalOmeqBox {
+  padding: 16px 24px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.totalOmeqLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.totalOmeqValue {
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: var(--mui-palette-primary-main);
+}
