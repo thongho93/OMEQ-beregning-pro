@@ -135,16 +135,6 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       ],
     },
     {
-      name: "Espranor",
-      manufacturer: "Ethypharm",
-      form: "lyofilisattablett",
-      strengths: ["2 mg", "8 mg"],
-      variants: [
-        { strength: "2 mg", productNumbers: [563914] },
-        { strength: "8 mg", productNumbers: [442861] },
-      ],
-    },
-    {
       name: "Norspan",
       manufacturer: "Mundipharma",
       form: "depotplaster",
@@ -158,45 +148,13 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       ],
     },
     {
-      name: "Suboxone",
-      manufacturer: "Indivior",
-      form: "sublingvalfilm",
-      strengths: ["2 mg/0,5 mg", "8 mg/2 mg", "12 mg/3 mg"],
-    },
-    {
-      name: "Suboxone",
-      manufacturer: "Indivior",
-      form: "sublingvaltablett",
-      strengths: ["2 mg/0,5 mg", "16 mg/4 mg"],
-    },
-    {
-      name: "Subutex",
-      manufacturer: "Indivior",
-      form: "depotinjeksjonsvæske",
-      strengths: ["100 mg", "300 mg"],
-    },
-    {
-      name: "Subutex",
-      manufacturer: "Indivior",
-      form: "sublingvaltablett",
-      strengths: ["2 mg", "8 mg"],
-    },
-    {
       name: "Temgesic",
       manufacturer: "Eumedica Pharmaceuticals",
       form: "sublingvaltablett",
       strengths: ["0,2 mg", "0,4 mg"],
-    },
-    {
-      name: "Zubsolv",
-      manufacturer: "Accord",
-      form: "sublingvaltablett",
-      strengths: [
-        "1,4 mg/0,36 mg",
-        "2,9 mg/0,71 mg",
-        "5,7 mg/1,4 mg",
-        "8,6 mg/2,1 mg",
-        "11,4 mg/2,9 mg",
+      variants: [
+        { strength: "0,2 mg", productNumbers: [485473] },
+        { strength: "0,4 mg", productNumbers: [424959] },
       ],
     },
   ],
@@ -212,18 +170,21 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Hameln",
       form: "injeksjon",
       strengths: ["50 µg/ml"],
+      variants: [{ strength: "50 µg/ml", productNumbers: [70007, 70016, 432520] }],
     },
     {
       name: "Fentanyl Kalceks",
       manufacturer: "Kalceks",
       form: "injeksjon",
       strengths: ["50 µg/ml"],
+      variants: [{ strength: "50 µg/ml", productNumbers: [60983, 194608] }],
     },
     {
       name: "Fentanyl Piramal",
       manufacturer: "Piramal",
       form: "injeksjon",
       strengths: ["50 µg/ml"],
+      variants: [{ strength: "50 µg/ml", productNumbers: [441432, 516532] }],
     },
   ],
   N02AB03: [
@@ -232,6 +193,12 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Grünenthal",
       form: "sublingvaltablett",
       strengths: ["100 µg", "200 µg", "300 µg", "400 µg", "600 µg", "800 µg"],
+      variants: [
+        { strength: "100 µg", productNumbers: [29277, 29300] },
+        { strength: "200 µg", productNumbers: [29311, 29211] },
+        { strength: "300 µg", productNumbers: [29335] },
+        { strength: "400 µg", productNumbers: [29222] },
+      ],
     },
     {
       name: "Durogesic",
@@ -251,6 +218,7 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Hameln",
       form: "injeksjon",
       strengths: ["50 µg/ml"],
+      variants: [{ strength: "50 µg/ml", productNumbers: [70007, 70016, 432520] }],
     },
     {
       name: "Fentanyl ratiopharm",
@@ -303,12 +271,14 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "G.L. Pharma",
       form: "infusjons-/injeksjonsvæske",
       strengths: ["50 mg/ml"],
+      variants: [{ strength: "50 mg/ml", productNumbers: [189493] }],
     },
     {
       name: "Palladon",
       manufacturer: "Mundipharma",
       form: "infusjons-/injeksjonsvæske",
       strengths: ["50 mg/ml"],
+      variants: [{ strength: "50 mg/ml", productNumbers: [585764] }],
     },
   ],
   N02AJ06: [
@@ -375,18 +345,36 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Abcur",
       form: "tablett",
       strengths: ["5 mg", "10 mg", "20 mg", "40 mg"],
+      variants: [
+        { strength: "5 mg", productNumbers: [546660, 534712] },
+        { strength: "10 mg", productNumbers: [142606, 413053] },
+        { strength: "20 mg", productNumbers: [105669, 33644] },
+        { strength: "40 mg", productNumbers: [189430] },
+      ],
     },
     {
       name: "Metadon DnE",
       manufacturer: "dne pharma",
       form: "mikstur",
       strengths: ["1 mg/ml", "2 mg/ml", "5 mg/ml"],
+      variants: [
+        { strength: "1 mg/ml", productNumbers: [25035, 25108, 25141, 138764, 144358] },
+        {
+          strength: "2 mg/ml",
+          productNumbers: [51424, 594310, 388255, 184007, 199991, 186014, 552444],
+        },
+        {
+          strength: "5 mg/ml",
+          productNumbers: [138841, 138852, 138863, 138874, 138885, 138896, 138907, 138918, 138929],
+        },
+      ],
     },
     {
       name: "Metadon Martindale",
       manufacturer: "Ethypharm",
       form: "mikstur",
       strengths: ["2 mg/ml"],
+      variants: [{ strength: "2 mg/ml", productNumbers: [98314, 48842, 48860, 48878] }],
     },
     {
       name: "Metadon Nordic Drugs",
@@ -419,6 +407,33 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
         "190 mg",
         "200 mg",
       ],
+      variants: [
+        { strength: "10 mg", productNumbers: [428498, 469490] },
+        { strength: "15 mg", productNumbers: [476137, 456243] },
+        { strength: "20 mg", productNumbers: [53007, 417647] },
+        { strength: "25 mg", productNumbers: [399319, 498243] },
+        { strength: "30 mg", productNumbers: [180493, 41732] },
+        { strength: "35 mg", productNumbers: [399570, 66939] },
+        { strength: "40 mg", productNumbers: [524514, 468830] },
+        { strength: "45 mg", productNumbers: [178338, 578308] },
+        { strength: "50 mg", productNumbers: [192275, 374605] },
+        { strength: "55 mg", productNumbers: [458134, 40540] },
+        { strength: "60 mg", productNumbers: [382268, 34477] },
+        { strength: "70 mg", productNumbers: [489347, 497921] },
+        { strength: "80 mg", productNumbers: [575088, 460912] },
+        { strength: "90 mg", productNumbers: [506079, 143333] },
+        { strength: "100 mg", productNumbers: [119897, 414491] },
+        { strength: "110 mg", productNumbers: [450865, 184497] },
+        { strength: "120 mg", productNumbers: [478499, 408839] },
+        { strength: "130 mg", productNumbers: [433303, 432458] },
+        { strength: "140 mg", productNumbers: [438235, 391262] },
+        { strength: "150 mg", productNumbers: [51012, 596112] },
+        { strength: "160 mg", productNumbers: [387320, 375645] },
+        { strength: "170 mg", productNumbers: [177392, 474813] },
+        { strength: "180 mg", productNumbers: [465162, 585863] },
+        { strength: "190 mg", productNumbers: [57065, 56928] },
+        { strength: "200 mg", productNumbers: [145412, 34684] },
+      ],
     },
   ],
   N02AA05: [
@@ -427,6 +442,7 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Abboxia",
       form: "infusjons-/injeksjonsvæske",
       strengths: ["1 mg/ml"],
+      variants: [{ strength: "1 mg/ml", productNumbers: [513323, 487567] }],
     },
     {
       name: "Oxycodone Actavis",
@@ -444,6 +460,10 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Hameln",
       form: "infusjons-/injeksjonsvæske",
       strengths: ["10 mg/ml", "50 mg/ml"],
+      variants: [
+        { strength: "10 mg/ml", productNumbers: [432994, 445811] },
+        { strength: "50 mg/ml", productNumbers: [95963] },
+      ],
     },
     {
       name: "Oxycodone Orifarm",
@@ -479,6 +499,10 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Mundipharma",
       form: "infusjons-/injeksjonsvæske",
       strengths: ["10 mg/ml", "50 mg/ml"],
+      variants: [
+        { strength: "10 mg/ml", productNumbers: [20944, 20955] },
+        { strength: "50 mg/ml", productNumbers: [460406] },
+      ],
     },
     {
       name: "OxyNorm",
@@ -589,6 +613,7 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Pharmanovia",
       form: "dråper",
       strengths: ["10 mg/ml"],
+      variants: [{ strength: "10 mg/ml", productNumbers: [480553, 44780] }],
     },
     {
       name: "Malfin",
@@ -607,7 +632,11 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       name: "Morfin",
       manufacturer: "Orifarm Healthcare",
       form: "injeksjon",
-      strengths: ["10 mg/ml"],
+      strengths: ["10 mg/ml", "20 mg/ml"],
+      variants: [
+        { strength: "10 mg/ml", productNumbers: [36309, 11866] },
+        { strength: "20 mg/ml", productNumbers: [127291] },
+      ],
     },
     {
       name: "Morfin",
@@ -624,26 +653,36 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Abcur",
       form: "injeksjon",
       strengths: ["10 mg/ml"],
+      variants: [{ strength: "10 mg/ml", productNumbers: [171174] }],
     },
     {
       name: "Morfin Epidural",
       manufacturer: "Orifarm Healthcare",
       form: "infusjons-/injeksjonsvæske",
       strengths: ["2 mg/ml"],
+      variants: [{ strength: "2 mg/ml", productNumbers: [449298] }],
     },
 
-    { name: "Oramorph", manufacturer: "care4", form: "mikstur", strengths: ["2 mg/ml"] },
+    {
+      name: "Oramorph",
+      manufacturer: "care4",
+      form: "mikstur",
+      strengths: ["2 mg/ml"],
+      variants: [{ strength: "2 mg/ml", productNumbers: [398411] }],
+    },
     {
       name: "Oramorph",
       manufacturer: "Molteni",
       form: "dråper",
       strengths: ["20 mg/ml"],
+      variants: [{ strength: "20 mg/ml", productNumbers: [478000] }],
     },
     {
       name: "Oramorph",
       manufacturer: "Molteni",
       form: "mikstur",
       strengths: ["2 mg/ml"],
+      variants: [{ strength: "2 mg/ml", productNumbers: [599903] }],
     },
   ],
   N02AX06: [
@@ -652,6 +691,10 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Grünenthal",
       form: "mikstur",
       strengths: ["4 mg/ml", "20 mg/ml"],
+      variants: [
+        { strength: "4 mg/ml", productNumbers: [438833] },
+        { strength: "20 mg/ml", productNumbers: [57462] },
+      ],
     },
     {
       name: "Palexia",

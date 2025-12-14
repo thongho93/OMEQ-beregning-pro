@@ -16,9 +16,10 @@ type SuggestionOption = {
 
 const getProductLabel = (p: any, strength?: string, varenummer?: string) => {
   const base = p?.name ?? "";
+  const f = p?.form ? ` ${p.form}` : "";
   const s = strength ? ` ${strength}` : "";
   const v = varenummer ? ` (${varenummer})` : "";
-  return `${base}${s}${v}`.trim();
+  return `${base}${f}${s}${v}`.trim();
 };
 
 export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
@@ -108,7 +109,8 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
     if (!hit?.product) return;
 
     const strengthText = (hit.strength ?? "").trim();
-    const base = `${hit.product.name}${strengthText ? ` ${strengthText}` : ""}`.trim();
+    const formText = hit.product?.form ? ` ${hit.product.form}` : "";
+    const base = `${hit.product.name}${formText}${strengthText ? ` ${strengthText}` : ""}`.trim();
     const next = `${base} (${numericQuery})`.trim();
 
     // Avoid rewriting if already in desired form
