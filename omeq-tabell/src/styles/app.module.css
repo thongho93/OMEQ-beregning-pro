@@ -13,8 +13,8 @@
 }
 
 .appSubtitle {
-  margin-top: 8px;
-  margin-bottom: 24px;
+  margin-top: 10px;
+  margin-bottom: 40px;
   line-height: 1.6;
 }
 
@@ -98,5 +98,35 @@
 
   .omeqRow > :nth-child(4) {
     margin-top: -8px;
+  }
+}
+
+/* Add-row button aligned under the OMEQ-faktor column */
+.addRowGrid {
+  display: grid;
+  grid-template-columns: 2fr 0.6fr 1fr 1fr; /* must match .omeqRow */
+  margin-top: 12px;
+}
+
+.addRowButtonCell {
+  grid-column: 2;
+  display: flex;
+  justify-content: center;
+}
+
+.addRowButton {
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  width: 44px;
+  height: 44px;
+}
+
+@media (max-width: 720px) {
+  .addRowGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .addRowButtonCell {
+    grid-column: 1;
+    justify-content: flex-start;
   }
 }

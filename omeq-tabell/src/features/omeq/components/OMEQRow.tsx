@@ -122,6 +122,19 @@ export const OMEQRow = ({ value, onChange }: Props) => {
           size="small"
           InputProps={{ readOnly: true }}
           fullWidth
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": {
+                borderColor: "primary.main",
+              },
+              "&:hover fieldset": {
+                borderColor: "primary.main",
+              },
+              "&.Mui-focused fieldset": {
+                borderColor: "primary.main",
+              },
+            },
+          }}
         />
       </Box>
 
@@ -132,6 +145,19 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         onChange={(e) => onChange({ ...value, doseText: e.target.value })}
         inputProps={{ inputMode: "decimal" }}
         fullWidth
+        sx={{
+          "& .MuiOutlinedInput-root": {
+            "& fieldset": {
+              borderColor: "primary.main",
+            },
+            "&:hover fieldset": {
+              borderColor: "primary.main",
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: "primary.main",
+            },
+          },
+        }}
       />
 
       <Typography
@@ -142,7 +168,25 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         {totalMg != null ? `Total: ${totalText} mg` : "Total: 0 mg"}
       </Typography>
 
-      <TextField label="OMEQ" value={omeqText} InputProps={{ readOnly: true }} fullWidth />
+      <TextField
+        label="OMEQ"
+        value={omeqText}
+        InputProps={{ readOnly: true }}
+        fullWidth
+        sx={{
+          "& .MuiOutlinedInput-root": {
+            "& fieldset": {
+              borderColor: "primary.main",
+            },
+            "&:hover fieldset": {
+              borderColor: "primary.main",
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: "primary.main",
+            },
+          },
+        }}
+      />
 
       {!!statusText && (
         <Typography variant="body2" color="text.secondary">

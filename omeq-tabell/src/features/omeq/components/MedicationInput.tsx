@@ -14,7 +14,12 @@ type SuggestionOption = {
   value: string;
 };
 
-const getProductLabel = (p: any) => (p?.manufacturer ? `${p.name} (${p.manufacturer})` : p?.name);
+const getProductLabel = (p: any, strength?: string, varenummer?: string) => {
+  const base = p?.name ?? "";
+  const s = strength ? ` ${strength}` : "";
+  const v = varenummer ? ` (${varenummer})` : "";
+  return `${base}${s}${v}`.trim();
+};
 
 export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
   const productIndex = useMemo(() => buildProductIndex(), []);
@@ -22,9 +27,24 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
   const options = useMemo<SuggestionOption[]>(() => {
     return Object.values(ATC_PRODUCTS)
       .flatMap((arr) => arr ?? [])
-      .map((p) => {
-        const label = p.manufacturer ? `${p.name} (${p.manufacturer})` : p.name;
-        return { label, value: p.name };
+      .flatMap((p: any) => {
+        if (Array.isArray(p.variants) && p.variants.length) {
+          return p.variants.flatMap((v: any) => {
+            const nums: number[] = Array.isArray(v.productNumbers) ? v.productNumbers : [];
+            return nums.map((n) => ({
+              label: getProductLabel(p, v.strength, String(n)),
+              value: getProductLabel(p, v.strength, String(n)),
+            }));
+          });
+        }
+
+        // fallback (no variants)
+        return [
+          {
+            label: getProductLabel(p),
+            value: getProductLabel(p),
+          },
+        ];
       })
       .filter((opt, idx, all) => all.findIndex((o) => o.label === opt.label) === idx)
       .sort((a, b) => a.label.localeCompare(b.label, "nb"));
@@ -118,7 +138,7 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
           if (numeric) {
             const hit = productByVarenummer.get(numeric);
             if (!hit?.product) return [];
-            const exactLabel = getProductLabel(hit.product);
+            const exactLabel = getProductLabel(hit.product, hit.strength, numeric);
             return opts.filter((o) => o.label === exactLabel).slice(0, 25);
           }
 
@@ -138,6 +158,19 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
             label="Preparat og styrke"
             placeholder='F.eks. "Tramagetic OD 200 mg"'
             fullWidth
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                "& fieldset": {
+                  borderColor: "primary.main",
+                },
+                "&:hover fieldset": {
+                  borderColor: "primary.main",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: "primary.main",
+                },
+              },
+            }}
           />
         )}
       />
