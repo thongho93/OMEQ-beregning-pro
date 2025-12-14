@@ -79,10 +79,6 @@ export function calculateOMEQ({ product, dailyDose, strength }: CalcInput) {
     return { omeq: null, reason: "unsupported-methadone" };
   }
 
-  if ((atc === "N02AA05" || atc === "N02AA55") && routeLower.includes("oral")) {
-    return { omeq: null, reason: "unsupported-oxycodone" };
-  }
-
   const opioid = OPIOIDS.find(
     (o) => o.atcCode.includes(product.atcCode as any) && o.route.includes(route)
   );

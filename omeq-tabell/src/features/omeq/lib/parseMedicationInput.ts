@@ -152,6 +152,17 @@ const extractCodeineStrengthFromCombo = (text: string): Strength | null => {
   return { value, unit: "mg" };
 };
 
+const extractOxycodoneStrengthFromCombo = (text: string): Strength | null => {
+  // For combo strengths like "5 mg/2,5 mg" (oxycodone/naloxone): use the first mg value (oxycodone)
+  const m = text.match(/\b(\d+(?:[.,]\d+)?)\s*mg\s*\//i);
+  if (!m) return null;
+
+  const value = Number(m[1].replace(",", "."));
+  if (!Number.isFinite(value)) return null;
+
+  return { value, unit: "mg" };
+};
+
 export const parseMedicationInput = (
   input: string,
   products: ProductIndexItem[]
@@ -177,6 +188,15 @@ export const parseMedicationInput = (
     strength =
       extractCodeineStrengthFromCombo(input) ??
       extractCodeineStrengthFromCombo(varenummerHit?.strengthText ?? "") ??
+      strength;
+  }
+
+  // Special case: N02AA05/N02AA55 (oxycodone +/- naloxone). If strength is "X mg/Y mg",
+  // use ONLY the first mg value (oxycodone) for OMEQ calculation.
+  if (product?.atcCode === "N02AA05" || product?.atcCode === "N02AA55") {
+    strength =
+      extractOxycodoneStrengthFromCombo(input) ??
+      extractOxycodoneStrengthFromCombo(varenummerHit?.strengthText ?? "") ??
       strength;
   }
 
