@@ -1,400 +1,133 @@
-import { useMemo, useState } from "react";
+import React from "react";
 import {
   Box,
-  Button,
-  Collapse,
-  Container,
-  Divider,
-  IconButton,
+  Drawer,
   List,
-  ListItem,
+  ListItemButton,
+  ListItemIcon,
   ListItemText,
-  Paper,
+  Toolbar,
+  IconButton,
+  Divider,
   Tooltip,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import CalculateIcon from "@mui/icons-material/Calculate";
+import TextSnippetIcon from "@mui/icons-material/TextSnippet";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import OMEQPage from "../features/omeq/pages/OMEQPage";
+import StandardTekstPage from "../features/standardtekster/pages/StandardTekstPage";
 
-import styles from "../styles/app.module.css";
+const SIDEBAR_WIDTH_EXPANDED = 260;
+const SIDEBAR_WIDTH_COLLAPSED = 72;
 
-import { OMEQRow, type OMEQRowValue } from "../features/omeq/components/OMEQRow";
-import { buildProductIndex, parseMedicationInput } from "../features/omeq/lib/parseMedicationInput";
-import { calculateOMEQ } from "../features/omeq/lib/calc";
-import { OPIOIDS } from "../features/omeq/data/opioids";
+function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-type Row = OMEQRowValue & { id: string };
-
-const makeRow = (): Row => ({
-  id: crypto.randomUUID(),
-  medicationText: "",
-  doseText: "",
-});
-
-function App() {
-  const [rows, setRows] = useState<Row[]>([makeRow()]);
-  const [showHelp, setShowHelp] = useState(false);
-  const [showInfoTable, setShowInfoTable] = useState(false);
-
-  const setRowById = (id: string, next: OMEQRowValue) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...next } : r)));
+  const isSelected = (path: string) => {
+    if (path === "/omeq") return location.pathname === "/" || location.pathname === "/omeq";
+    return location.pathname === path;
   };
 
-  const addRow = () => {
-    setRows((prev) => [...prev, makeRow()]);
-  };
+  const width = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
-  const resetAll = () => {
-    window.location.reload();
-  };
-
-  const showDividers = useMemo(() => rows.length > 1, [rows.length]);
-
-  const productIndex = useMemo(() => buildProductIndex(), []);
-
-  // Always compute a number (0 when nothing is valid), so we can show Total OMEQ even with 1 row
-  const totalOmeq = useMemo(() => {
-    const sum = rows.reduce((acc, r) => {
-      const parsed = parseMedicationInput(r.medicationText, productIndex);
-
-      const isPatch = parsed.product?.form?.toLowerCase() === "depotplaster";
-
-      if (!isPatch) {
-        const raw = r.doseText.trim();
-        if (!raw) return acc;
-
-        const dailyDose = Number(raw.replace(",", "."));
-        if (!Number.isFinite(dailyDose)) return acc;
-
-        const result = calculateOMEQ({
-          product: parsed.product ?? null,
-          dailyDose,
-          strength: parsed.strength ?? null,
-        });
-
-        return acc + (typeof result.omeq === "number" ? result.omeq : 0);
-      }
-
-      const result = calculateOMEQ({
-        product: parsed.product ?? null,
-        dailyDose: null,
-        strength: parsed.strength ?? null,
-      });
-
-      return acc + (typeof result.omeq === "number" ? result.omeq : 0);
-    }, 0);
-
-    return Math.round((sum + Number.EPSILON) * 100) / 100;
-  }, [rows, productIndex]);
-
-  const formatFactor = (n: number) => {
-    // display with comma for decimals
-    const s = String(n);
-    return s.includes(".") ? s.replace(".", ",") : s;
-  };
-
-  const routeLabel = (routes: string[]) => {
-    const set = new Set(routes.map((r) => r.toLowerCase()));
-    if (set.has("sublingval") && set.has("intranasal")) return "Sublingval/intranasal";
-    if (set.has("oral") && set.has("rektal")) return "Oral/rektal";
-
-    const one = routes[0]?.toLowerCase();
-    switch (one) {
-      case "oral":
-        return "Oral";
-      case "rektal":
-        return "Rektal";
-      case "parenteral":
-        return "Parenteral";
-      case "transdermal":
-        return "Transdermal";
-      case "sublingval":
-        return "Sublingval";
-      case "intranasal":
-        return "Intranasal";
-      default:
-        return routes.join("/");
-    }
-  };
-
-  const opioidGroups = useMemo(() => {
-    const bySubstance = new Map<string, any[]>();
-
-    OPIOIDS.forEach((o) => {
-      const key = o.substance;
-      const current = bySubstance.get(key) ?? [];
-      current.push(o);
-      bySubstance.set(key, current);
-    });
-
-    // Keep stable order as in the source array
-    const seen = new Set<string>();
-    const orderedKeys: string[] = [];
-    OPIOIDS.forEach((o) => {
-      if (!seen.has(o.substance)) {
-        seen.add(o.substance);
-        orderedKeys.push(o.substance);
-      }
-    });
-
-    return orderedKeys.map((substance) => {
-      const items = bySubstance.get(substance) ?? [];
-      const atc = Array.from(new Set(items.flatMap((x) => x.atcCode))).join(", ");
-      return { substance, atc, items };
-    });
-  }, []);
+  const items = [
+    { label: "OMEQ-beregning", path: "/omeq", icon: <CalculateIcon /> },
+    { label: "Standardtekster", path: "/standardtekster", icon: <TextSnippetIcon /> },
+    { label: "Felleskatalogen", path: "/felleskatalogen", icon: <MenuBookIcon /> },
+  ];
 
   return (
-    <Container maxWidth={false} className={styles.appContainer}>
-      <Paper elevation={3} className={styles.appCard}>
-        <Typography variant="h4" gutterBottom>
-          Beregning av OMEQ
-        </Typography>
+    <Drawer
+      variant="permanent"
+      sx={{
+        width,
+        flexShrink: 0,
+        "& .MuiDrawer-paper": {
+          width,
+          boxSizing: "border-box",
+          overflowX: "hidden",
+          transition: "width 180ms ease",
+        },
+      }}
+    >
+      <Toolbar
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: collapsed ? "center" : "flex-end",
+          px: 1,
+        }}
+      >
+        <Tooltip title={collapsed ? "Utvid meny" : "Skjul meny"}>
+          <IconButton onClick={onToggle} aria-label={collapsed ? "Utvid meny" : "Skjul meny"}>
+            {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </IconButton>
+        </Tooltip>
+      </Toolbar>
 
-        <Box sx={{ mb: 3 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              flexWrap: "wrap",
-            }}
-          >
-            <Button
-              variant="text"
-              size="small"
-              onClick={() => setShowHelp((v) => !v)}
-              endIcon={showHelp ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+      <Divider />
+
+      <List>
+        {items.map((item) => (
+          <Tooltip key={item.path} title={collapsed ? item.label : ""} placement="right">
+            <ListItemButton
+              selected={isSelected(item.path)}
+              onClick={() => navigate(item.path)}
               sx={{
-                width: 210,
-                flexShrink: 0,
-                justifyContent: "space-between",
-                textTransform: "none",
-                backgroundColor: "primary.main",
-                color: "white",
-                padding: "4px 8px",
-                borderRadius: 1,
-                "&:hover": {
-                  backgroundColor: "primary.main",
-                },
+                justifyContent: collapsed ? "center" : "flex-start",
+                px: collapsed ? 1 : 2,
               }}
             >
-              {showHelp ? "Skjul bruksanvisning" : "Vis bruksanvisning"}
-            </Button>
-
-            <Button
-              variant="text"
-              size="small"
-              onClick={() => setShowInfoTable((v) => !v)}
-              endIcon={showInfoTable ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              sx={{
-                width: 210,
-                flexShrink: 0,
-                justifyContent: "space-between",
-                textTransform: "none",
-                backgroundColor: "primary.main",
-                color: "white",
-                padding: "4px 8px",
-                borderRadius: 1,
-                "&:hover": {
-                  backgroundColor: "primary.main",
-                },
-              }}
-            >
-              {showInfoTable ? "Skjul OMEQ-tabell" : "Vis OMEQ-tabell"}
-            </Button>
-          </Box>
-
-          <Collapse in={showHelp} timeout="auto" unmountOnExit>
-            <Paper
-              variant="outlined"
-              sx={(theme) => ({
-                mt: 2,
-                p: 2,
-                borderRadius: 2,
-                borderColor: theme.palette.divider,
-                backgroundColor: theme.palette.background.paper,
-              })}
-            >
-              <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                Slik bruker du OMEQ-beregneren
-              </Typography>
-
-              <List dense disablePadding>
-                <ListItem disableGutters>
-                  <ListItemIcon sx={{ minWidth: 20, color: "text.secondary" }}>
-                    <FiberManualRecordIcon sx={{ fontSize: 8 }} />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Lim inn varenummer eller preparatnavn i feltet «Preparat og styrke»"
-                    primaryTypographyProps={{ variant: "body2", color: "text.secondary" }}
-                  />
-                </ListItem>
-
-                <ListItem disableGutters>
-                  <ListItemIcon sx={{ minWidth: 20, color: "text.secondary" }}>
-                    <FiberManualRecordIcon sx={{ fontSize: 8 }} />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="OMEQ-faktor fylles automatisk basert på valgt preparat"
-                    primaryTypographyProps={{ variant: "body2", color: "text.secondary" }}
-                  />
-                </ListItem>
-
-                <ListItem disableGutters>
-                  <ListItemIcon sx={{ minWidth: 20, color: "text.secondary" }}>
-                    <FiberManualRecordIcon sx={{ fontSize: 8 }} />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Legg inn total døgndose – beregnet OMEQ vises til høyre"
-                    primaryTypographyProps={{ variant: "body2", color: "text.secondary" }}
-                  />
-                </ListItem>
-
-                <ListItem disableGutters sx={{ pl: 4 }}>
-                  <ListItemIcon sx={{ minWidth: 20, color: "text.secondary" }}>
-                    <FiberManualRecordIcon sx={{ fontSize: 6 }} />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="For depotplaster er døgndose ikke nødvendig"
-                    primaryTypographyProps={{ variant: "body2", color: "text.secondary" }}
-                  />
-                </ListItem>
-
-                <ListItem disableGutters>
-                  <ListItemIcon sx={{ minWidth: 20, color: "text.secondary" }}>
-                    <FiberManualRecordIcon sx={{ fontSize: 8 }} />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Flere preparater kan legges til – total OMEQ summeres nederst"
-                    primaryTypographyProps={{ variant: "body2", color: "text.secondary" }}
-                  />
-                </ListItem>
-              </List>
-            </Paper>
-          </Collapse>
-
-          <Collapse in={showInfoTable} timeout="auto" unmountOnExit>
-            <Paper
-              variant="outlined"
-              sx={(theme) => ({
-                mt: 2,
-                borderRadius: 2,
-                borderColor: theme.palette.divider,
-                backgroundColor: theme.palette.background.paper,
-                overflow: "hidden",
-              })}
-            >
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Virkestoff</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Administrasjonsvei</TableCell>
-                      <TableCell sx={{ fontWeight: 600, width: 180 }}>
-                        Ekvianalgetisk ratio
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    {opioidGroups.map((g) =>
-                      g.items.map((item, i) => (
-                        <TableRow key={item.id}>
-                          {i === 0 ? (
-                            <TableCell rowSpan={g.items.length} sx={{ verticalAlign: "top" }}>
-                              {g.substance}
-                              {g.atc ? ` (${g.atc})` : ""}
-                            </TableCell>
-                          ) : null}
-
-                          <TableCell>{routeLabel(item.route)}</TableCell>
-                          <TableCell>{formatFactor(item.omeqFactor)}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          </Collapse>
-        </Box>
-
-        {rows.map((r, idx) => (
-          <Box key={r.id}>
-            <OMEQRow value={r} onChange={(next) => setRowById(r.id, next)} />
-
-            {idx < rows.length - 1 && showDividers && <Divider sx={{ my: 2 }} />}
-
-            {idx === rows.length - 1 && (
-              <Box className={styles.totalOmeqWrapper}>
-                <Box className={styles.totalOmeqBox}>
-                  <Typography variant="subtitle2" className={styles.totalOmeqLabel}>
-                    Total OMEQ
-                  </Typography>
-                  <Typography variant="h5" className={styles.totalOmeqValue}>
-                    {totalOmeq}
-                  </Typography>
-                </Box>
-              </Box>
-            )}
-
-            {idx === rows.length - 1 && (
-              <Box className={styles.addRowGrid}>
-                <Box className={styles.addRowButtonCell} style={{ gap: 8 }}>
-                  <Tooltip title="Legg til ny linje">
-                    <IconButton
-                      aria-label="Legg til ny linje"
-                      onClick={addRow}
-                      sx={{
-                        backgroundColor: "primary.main",
-                        color: "white",
-                        "&:hover": {
-                          backgroundColor: "primary.main",
-                        },
-                      }}
-                      className={styles.addRowButton}
-                    >
-                      <AddIcon />
-                    </IconButton>
-                  </Tooltip>
-
-                  <Tooltip title="Nullstill beregning">
-                    <IconButton
-                      aria-label="Nullstill beregning"
-                      onClick={resetAll}
-                      sx={{
-                        ml: 2,
-                        border: "1px solid",
-                        borderColor: "primary.main",
-                        color: "primary.main",
-                        "&:hover": {
-                          backgroundColor: "action.hover",
-                        },
-                      }}
-                      className={styles.addRowButton}
-                    >
-                      <RestartAltIcon />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Box>
-            )}
-          </Box>
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: collapsed ? 0 : 2,
+                  justifyContent: "center",
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              {!collapsed && <ListItemText primary={item.label} />}
+            </ListItemButton>
+          </Tooltip>
         ))}
-      </Paper>
-    </Container>
+      </List>
+    </Drawer>
   );
 }
 
-export default App;
+function Layout() {
+  const [collapsed, setCollapsed] = React.useState<boolean>(() => {
+    const stored = localStorage.getItem("sidebar-collapsed");
+    return stored === "true";
+  });
+  React.useEffect(() => {
+    localStorage.setItem("sidebar-collapsed", String(collapsed));
+  }, [collapsed]);
+
+  return (
+    <Box sx={{ display: "flex", minHeight: "100vh" }}>
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
+      <Box component="main" sx={{ flex: 1, p: 2 }}>
+        <Routes>
+          <Route path="/" element={<OMEQPage />} />
+          <Route path="/omeq" element={<OMEQPage />} />
+          <Route path="/standardtekster" element={<StandardTekstPage />} />
+          <Route path="/felleskatalogen" element={<div>Felleskatalogen (kommer)</div>} />
+        </Routes>
+      </Box>
+    </Box>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Layout />
+    </BrowserRouter>
+  );
+}
