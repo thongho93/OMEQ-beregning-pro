@@ -12,6 +12,7 @@ import {
   Typography,
   Button,
   Stack,
+  Snackbar,
 } from "@mui/material";
 import {
   collection,
@@ -24,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../../firebase/firebase";
 import { useAuthUser } from "../../../app/auth/Auth";
+import MedicationSearch from "../../fest/components/MedicationSearch";
 
 type StandardTekst = {
   id: string;
@@ -77,6 +79,33 @@ function mapDocToStandardTekst(id: string, data: Record<string, unknown>): Stand
   };
 }
 
+function formatPreparatForTemplate(med: {
+  varenavn: string | null;
+  navnFormStyrke: string | null;
+}): string {
+  const name = (med.varenavn ?? "").trim();
+  const nfs = (med.navnFormStyrke ?? "").trim();
+
+  // Try to extract the first strength-like fragment.
+  // Supports: "0,1 mg/dose", "40 mg", "50 mikrog/500 mikrog", "1,25 mg/2,5 ml"
+  // We stop at comma+space (", ") which is used as field separators in many FEST strings.
+  const unit = "mg|g|µg|mcg|ug|mikrog|mikrogram|iu|ie|i\\.e\\.|mmol|ml";
+  const m = nfs.match(
+    new RegExp(`(\\d+[.,]?\\d*\\s*(?:${unit})(?:\\s*\\/\\s*[^;\\)\\n]+?)?)(?=,\\s|$)`, "i")
+  );
+
+  const strength = m?.[1]
+    ? m[1]
+        .replace(/\s*\/\s*/g, "/")
+        .replace(/\s+/g, " ")
+        .trim()
+    : "";
+
+  if (name && strength) return `${name} ${strength}`;
+  if (name) return name;
+  return nfs || "";
+}
+
 export default function StandardTekstPage() {
   const [items, setItems] = useState<StandardTekst[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -90,6 +119,8 @@ export default function StandardTekstPage() {
   const [draftTitle, setDraftTitle] = useState<string>("");
   const [draftContent, setDraftContent] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
+  const [pickedPreparat, setPickedPreparat] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -99,13 +130,12 @@ export default function StandardTekstPage() {
         setLoading(true);
         setError(null);
 
-        collection(db, "Standardtekster");
-        // Viktig: Bytt collection-navn hvis du bruker noe annet enn "standardtekster"
-        // Hvis du har et felt du vil sortere på (f.eks. "title"), kan du endre orderBy.
         const q = query(collection(db, "Standardtekster"));
 
         const snap = await getDocs(q);
-        const mapped = snap.docs.map((d) => mapDocToStandardTekst(d.id, d.data()));
+        const mapped = snap.docs
+          .map((d) => mapDocToStandardTekst(d.id, d.data()))
+          .sort((a, b) => a.title.localeCompare(b.title, "nb"));
 
         if (!isMounted) return;
 
@@ -145,17 +175,28 @@ export default function StandardTekstPage() {
 
   const displayContent = useMemo(() => {
     if (!selected) return "";
-    if (!firstName) return selected.content;
+
+    let text = selected.content;
 
     // Replace standalone XX with the user's first name
-    return selected.content.replace(/\bXX\b/g, firstName);
-  }, [selected, firstName]);
+    if (firstName) {
+      text = text.replace(/\bXX\b/g, firstName);
+    }
+
+    // Replace {{PREPARAT}} with picked preparat (if chosen)
+    if (pickedPreparat) {
+      text = text.replace(/\{\{\s*PREPARAT\s*\}\}/g, pickedPreparat);
+    }
+
+    return text;
+  }, [selected, firstName, pickedPreparat]);
 
   useEffect(() => {
     // Når du bytter valgt tekst, avslutt redigering og synk draft
     setIsEditing(false);
     setDraftTitle(selected?.title ?? "");
     setDraftContent(selected?.content ?? "");
+    setPickedPreparat(null);
   }, [selectedId]);
 
   const startEdit = () => {
@@ -200,6 +241,36 @@ export default function StandardTekstPage() {
     }
   };
 
+  const copyBodyToClipboard = async () => {
+    if (!selected) return;
+    if (isEditing) return;
+
+    const text = (displayContent ?? "").trim();
+    if (!text) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      return;
+    } catch {
+      // Fallback for eldre nettlesere / usikre kontekster
+      try {
+        const el = document.createElement("textarea");
+        el.value = text;
+        el.setAttribute("readonly", "");
+        el.style.position = "absolute";
+        el.style.left = "-9999px";
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+        setCopied(true);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Box sx={{ mb: 2 }}>
@@ -221,6 +292,20 @@ export default function StandardTekstPage() {
           label="Søk i standardtekster"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <MedicationSearch
+          onPick={(med) => {
+            const text = formatPreparatForTemplate(med);
+            if (!text) return;
+
+            setPickedPreparat(text);
+
+            // If admin is editing, also replace inside the draft so it can be saved if desired.
+            if (isEditing) {
+              setDraftContent((prev) => prev.replace(/\{\{\s*PREPARAT\s*\}\}/g, text));
+            }
+          }}
         />
       </Paper>
 
@@ -272,7 +357,14 @@ export default function StandardTekstPage() {
           )}
         </Paper>
 
-        <Paper sx={{ p: 2, minHeight: 280 }}>
+        <Paper
+          onClick={selected && !isEditing ? copyBodyToClipboard : undefined}
+          sx={{
+            p: 2,
+            minHeight: 280,
+            cursor: selected && !isEditing ? "copy" : "default",
+          }}
+        >
           {!selected && !loading && (
             <Typography variant="body2" color="text.secondary">
               Velg en standardtekst fra listen.
@@ -286,7 +378,10 @@ export default function StandardTekstPage() {
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={startEdit}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startEdit();
+                    }}
                     sx={{
                       borderRadius: 999,
                       textTransform: "none",
@@ -336,10 +431,24 @@ export default function StandardTekstPage() {
                     onChange={(e) => setDraftContent(e.target.value)}
                   />
                   <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: "flex-end" }}>
-                    <Button variant="text" onClick={cancelEdit} disabled={saving}>
+                    <Button
+                      variant="text"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cancelEdit();
+                      }}
+                      disabled={saving}
+                    >
                       Avbryt
                     </Button>
-                    <Button variant="contained" onClick={saveEdit} disabled={saving}>
+                    <Button
+                      variant="contained"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        saveEdit();
+                      }}
+                      disabled={saving}
+                    >
                       {saving ? "Lagrer..." : "Lagre"}
                     </Button>
                   </Stack>
@@ -353,6 +462,12 @@ export default function StandardTekstPage() {
           )}
         </Paper>
       </Box>
+      <Snackbar
+        open={copied}
+        autoHideDuration={1500}
+        onClose={() => setCopied(false)}
+        message="Teksten er kopiert"
+      />
     </Box>
   );
 }
