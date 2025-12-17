@@ -13,8 +13,10 @@ import {
   Button,
   Stack,
   Snackbar,
+  IconButton,
 } from "@mui/material";
 import {
+  addDoc,
   collection,
   doc,
   getDocs,
@@ -26,6 +28,8 @@ import {
 import { db } from "../../../firebase/firebase";
 import { useAuthUser } from "../../../app/auth/Auth";
 import MedicationSearch from "../../fest/components/MedicationSearch";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 
 type StandardTekst = {
   id: string;
@@ -83,8 +87,8 @@ function formatPreparatForTemplate(med: {
   varenavn: string | null;
   navnFormStyrke: string | null;
 }): string {
-  const name = (med.varenavn ?? "").trim();
-  const nfs = (med.navnFormStyrke ?? "").trim();
+  const nfsRaw = (med.navnFormStyrke ?? "").trim();
+  const nfs = nfsRaw.replace(/\s+/g, " ").trim();
 
   // Try to extract the first strength-like fragment.
   // Supports: "0,1 mg/dose", "40 mg", "50 mikrog/500 mikrog", "1,25 mg/2,5 ml"
@@ -101,9 +105,117 @@ function formatPreparatForTemplate(med: {
         .trim()
     : "";
 
-  if (name && strength) return `${name} ${strength}`;
+  // Prefer name extracted from navnFormStyrke (this typically avoids manufacturer tokens like “Viatris/xiromed”).
+  // 1) remove trailing metadata after comma (often pack info)
+  const head = nfs.replace(/,.*$/, "").trim();
+
+  // 2) take everything before a common dosage-form keyword
+  const formWords = [
+    "tab",
+    "tablett",
+    "kaps",
+    "kapsel",
+    "inj",
+    "mikst",
+    "mikstur",
+    "inh",
+    "aerosol",
+    "pulv",
+    "plaster",
+    "spray",
+    "oppl",
+    "susp",
+    "granulat",
+    "krem",
+    "salve",
+    "gel",
+    "liniment",
+    "drasj",
+    "supp",
+    "stikkpille",
+    "mikrog",
+    "mikrogram",
+  ].join("|");
+
+  const beforeForm = head.split(new RegExp(`\\b(?:${formWords})\\b`, "i"))[0]?.trim() ?? "";
+  const nameFromNfs = beforeForm.replace(/\s+/g, " ").trim();
+
+  const fallbackName = (med.varenavn ?? "").trim();
+  const name = nameFromNfs || fallbackName;
+
+  if (name && strength) return `${name} ${strength}`.replace(/\s+/g, " ").trim();
   if (name) return name;
   return nfs || "";
+}
+
+function renderContentWithPreparatHighlight(text: string, pickedPreparat: string | null) {
+  const tokenSx = {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 0.75,
+    px: 0.75,
+    py: 0.15,
+    lineHeight: 1.2,
+    fontSize: "0.95em",
+    whiteSpace: "nowrap",
+  } as const;
+
+  const placeholderSx = {
+    ...tokenSx,
+    bgcolor: "warning.light",
+    color: "warning.contrastText",
+    fontFamily: "monospace",
+  } as const;
+
+  const pickedSx = {
+    ...tokenSx,
+    bgcolor: "success.light",
+    color: "success.contrastText",
+    fontWeight: 600,
+  } as const;
+
+  // 1) If placeholder exists, highlight it clearly.
+  const placeholder = "{{PREPARAT}}";
+  if (text.includes(placeholder)) {
+    const parts = text.split(placeholder);
+    return (
+      <>
+        {parts.map((p, i) => (
+          <span key={i}>
+            {p}
+            {i < parts.length - 1 ? (
+              <Box component="span" sx={placeholderSx}>
+                {placeholder}
+              </Box>
+            ) : null}
+          </span>
+        ))}
+      </>
+    );
+  }
+
+  // 2) If placeholder is already replaced, highlight the chosen preparat once so you can verify it.
+  if (pickedPreparat) {
+    const lower = text.toLowerCase();
+    const needle = pickedPreparat.toLowerCase();
+    const idx = lower.indexOf(needle);
+    if (idx !== -1) {
+      const before = text.slice(0, idx);
+      const hit = text.slice(idx, idx + pickedPreparat.length);
+      const after = text.slice(idx + pickedPreparat.length);
+      return (
+        <>
+          {before}
+          <Box component="span" sx={pickedSx}>
+            {hit}
+          </Box>
+          {after}
+        </>
+      );
+    }
+  }
+
+  return text;
 }
 
 export default function StandardTekstPage() {
@@ -119,8 +231,35 @@ export default function StandardTekstPage() {
   const [draftTitle, setDraftTitle] = useState<string>("");
   const [draftContent, setDraftContent] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
-  const [pickedPreparat, setPickedPreparat] = useState<string | null>(null);
+  const [creating, setCreating] = useState<boolean>(false);
+
+  type PreparatRow = { id: number; picked: string | null };
+  const [preparatRows, setPreparatRows] = useState<PreparatRow[]>([{ id: 0, picked: null }]);
   const [copied, setCopied] = useState(false);
+
+  const addPreparatRow = () => {
+    setPreparatRows((prev) => {
+      const nextId = (prev[prev.length - 1]?.id ?? 0) + 1;
+      return [...prev, { id: nextId, picked: null }];
+    });
+  };
+
+  const removePreparatRow = (id: number) => {
+    setPreparatRows((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      // Always keep at least one field
+      return next.length ? next : [{ id: 0, picked: null }];
+    });
+  };
+
+  const setPickedForRow = (id: number, picked: string | null) => {
+    setPreparatRows((prev) => prev.map((r) => (r.id === id ? { ...r, picked } : r)));
+  };
+
+  const replaceNextPreparatToken = (text: string, value: string) => {
+    // Replace ONLY the next (first) placeholder occurrence
+    return text.replace(/\{\{\s*PREPARAT\s*\}\}/, value);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -183,20 +322,22 @@ export default function StandardTekstPage() {
       text = text.replace(/\bXX\b/g, firstName);
     }
 
-    // Replace {{PREPARAT}} with picked preparat (if chosen)
-    if (pickedPreparat) {
-      text = text.replace(/\{\{\s*PREPARAT\s*\}\}/g, pickedPreparat);
+    // Replace {{PREPARAT}} placeholders in order, one per picked preparat
+    for (const row of preparatRows) {
+      if (row.picked) {
+        text = replaceNextPreparatToken(text, row.picked);
+      }
     }
 
     return text;
-  }, [selected, firstName, pickedPreparat]);
+  }, [selected, firstName, preparatRows]);
 
   useEffect(() => {
     // Når du bytter valgt tekst, avslutt redigering og synk draft
     setIsEditing(false);
     setDraftTitle(selected?.title ?? "");
     setDraftContent(selected?.content ?? "");
-    setPickedPreparat(null);
+    setPreparatRows([{ id: 0, picked: null }]);
   }, [selectedId]);
 
   const startEdit = () => {
@@ -241,6 +382,54 @@ export default function StandardTekstPage() {
     }
   };
 
+  const createNewStandardTekst = async () => {
+    if (!isAdmin) return;
+
+    setCreating(true);
+    setError(null);
+
+    try {
+      const colRef = collection(db, "Standardtekster");
+
+      const now = serverTimestamp();
+      const newDoc = {
+        title: "Ny standardtekst",
+        category: "",
+        content: "",
+        updatedAt: now,
+        createdAt: now,
+      } as const;
+
+      const docRef = await addDoc(colRef, newDoc);
+
+      const localItem: StandardTekst = {
+        id: docRef.id,
+        title: "Ny standardtekst",
+        category: undefined,
+        content: "",
+        updatedAt: new Date(),
+      };
+
+      // Add to local list and select it immediately
+      setItems((prev) => {
+        const next = [localItem, ...prev];
+        return next.sort((a, b) => a.title.localeCompare(b.title, "nb"));
+      });
+
+      setSelectedId(docRef.id);
+
+      // Start editing right away
+      setDraftTitle(localItem.title);
+      setDraftContent(localItem.content);
+      setIsEditing(true);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Ukjent feil ved opprettelse";
+      setError(message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const copyBodyToClipboard = async () => {
     if (!selected) return;
     if (isEditing) return;
@@ -273,11 +462,32 @@ export default function StandardTekstPage() {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h4">Standardtekster</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Data hentes fra Firebase (Firestore).
-        </Typography>
+      <Box sx={{ mb: 2, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
+        <Box>
+          <Typography variant="h4">Standardtekster</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Data hentes fra Firebase (Firestore).
+          </Typography>
+        </Box>
+
+        {isAdmin && (
+          <Button
+            variant="contained"
+            size="small"
+            onClick={createNewStandardTekst}
+            disabled={creating}
+            sx={{
+              borderRadius: 999,
+              textTransform: "none",
+              px: 2,
+              py: 0.75,
+              whiteSpace: "nowrap",
+              alignSelf: "center",
+            }}
+          >
+            {creating ? "Oppretter..." : "Ny standardtekst"}
+          </Button>
+        )}
       </Box>
 
       {error && (
@@ -347,19 +557,53 @@ export default function StandardTekstPage() {
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Paper sx={{ p: 2 }}>
             <Box sx={{ maxWidth: 520 }}>
-              <MedicationSearch
-                onPick={(med) => {
-                  const text = formatPreparatForTemplate(med);
-                  if (!text) return;
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                {preparatRows.map((row, idx) => (
+                  <Box key={row.id} sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                    <Box sx={{ flex: 1 }}>
+                      <MedicationSearch
+                        onPick={(med) => {
+                          const text = formatPreparatForTemplate(med);
+                          if (!text) return;
 
-                  setPickedPreparat(text);
+                          setPickedForRow(row.id, text);
 
-                  // If admin is editing, also replace inside the draft so it can be saved if desired.
-                  if (isEditing) {
-                    setDraftContent((prev) => prev.replace(/\{\{\s*PREPARAT\s*\}\}/g, text));
-                  }
-                }}
-              />
+                          // If admin is editing, also replace ONLY the next placeholder in draftContent.
+                          if (isEditing) {
+                            setDraftContent((prev) => replaceNextPreparatToken(prev, text));
+                          }
+                        }}
+                      />
+                    </Box>
+
+                    <Box sx={{ pt: 0.5, display: "flex", flexDirection: "column", gap: 0.25 }}>
+                      <IconButton
+                        aria-label="Legg til nytt preparat"
+                        size="small"
+                        onClick={addPreparatRow}
+                        sx={{
+                          borderRadius: 999,
+                        }}
+                      >
+                        <AddCircleOutlineIcon fontSize="small" />
+                      </IconButton>
+
+                      {preparatRows.length > 1 && (
+                        <IconButton
+                          aria-label="Fjern dette preparatet"
+                          size="small"
+                          onClick={() => removePreparatRow(row.id)}
+                          sx={{
+                            borderRadius: 999,
+                          }}
+                        >
+                          <RemoveCircleOutlineIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
             </Box>
           </Paper>
 
@@ -461,8 +705,15 @@ export default function StandardTekstPage() {
                     </Stack>
                   </>
                 ) : (
-                  <Typography variant="body1" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
-                    {displayContent || "(Tom tekst)"}
+                  <Typography
+                    variant="body1"
+                    component="div"
+                    sx={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}
+                  >
+                    {renderContentWithPreparatHighlight(
+                      displayContent || "(Tom tekst)",
+                      preparatRows.find((r) => r.picked)?.picked ?? null
+                    )}
                   </Typography>
                 )}
               </>
