@@ -96,7 +96,6 @@ const DOSAGE_FORM_TOKENS = new Set(
     "supp",
     "depotkaps",
     "enterodepottab",
-    "depottablett",
     "enterokaps",
   ].map((s) => s.toLowerCase())
 );
@@ -287,6 +286,17 @@ export function replaceNextPreparatToken(text: string, value: string) {
   // Supports both {{PREPARAT}} and {{PREPARAT1}}.
   return text.replace(/\{\{\s*(PREPARAT1|PREPARAT)\s*\}\}/, value);
 }
+
+export const replaceVareTokenByCount = (text: string, count: number): string => {
+  if (!text) return text;
+
+  const replacement = count === 1 ? "varen" : "varene";
+
+  return text
+    .replace(/\{\{\s*VAREN\s*\}\}/gi, replacement)
+    .replace(/\{\{\s*VARENE\s*\}\}/gi, replacement)
+    .replace(/\{\{\s*VARE\(N?E?\)\s*\}\}/gi, replacement);
+};
 
 export function usePreparatRows() {
   const [preparatRows, setPreparatRows] = useState<PreparatRow[]>([{ id: 0, picked: null }]);
