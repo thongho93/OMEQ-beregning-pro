@@ -39,6 +39,7 @@ import {
   formatPreparatList,
   replacePreparatTokenWithList,
   replacePreparatTokensPrimarySecondary,
+  replaceVareTokenByCount,
 } from "../utils/preparat";
 import { renderContentWithPreparatHighlight } from "../utils/render";
 import styles from "../../../styles/standardTekstPage.module.css";
@@ -173,6 +174,25 @@ export default function StandardTekstPage() {
       }
     }
 
+    const preparatCount = picked.length;
+    text = replaceVareTokenByCount(text, preparatCount);
+
+    return text;
+  }, [selected, firstName, preparatRows]);
+
+  const previewContent = useMemo(() => {
+    if (!selected) return "";
+
+    let text = selected.content;
+
+    // Replace standalone XX with the user's first name
+    if (firstName) {
+      text = text.replace(/\bXX\b/g, firstName);
+    }
+
+    const picked = preparatRows.map((r) => r.picked).filter(Boolean) as string[];
+    text = replaceVareTokenByCount(text, picked.length);
+
     return text;
   }, [selected, firstName, preparatRows]);
 
@@ -182,7 +202,14 @@ export default function StandardTekstPage() {
     setDraftTitle(selected?.title ?? "");
     setDraftContent(selected?.content ?? "");
     resetPreparatRows();
-  }, [selectedId]);
+
+    // Auto-focus preparat search when a template is selected, so user can start typing right away.
+    // Use rAF to wait for the input to be mounted/updated.
+    requestAnimationFrame(() => {
+      preparatSearchInputRef.current?.focus();
+      preparatSearchInputRef.current?.select();
+    });
+  }, [selectedId, resetPreparatRows, selected]);
 
   const startEdit = () => {
     if (!selected) return;
@@ -563,8 +590,9 @@ export default function StandardTekstPage() {
                   <>
                     <Typography variant="body1" component="div" className={styles.body}>
                       {renderContentWithPreparatHighlight(
-                        displayContent || "(Tom tekst)",
-                        preparatRows.map((r) => r.picked)
+                        previewContent || "(Tom tekst)",
+                        preparatRows.map((r) => r.picked),
+                        { enableSecondaryHighlight: /\{\{\s*PREPARAT1\s*\}\}/.test(selected?.content ?? "") }
                       )}
                     </Typography>
 
