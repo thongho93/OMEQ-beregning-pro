@@ -68,8 +68,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["parenteral"],
     omeqFactor: 150,
     isShortActing: true,
-    helpText:
-      "Styrken er allerede omregnet fra µg til mg. Legg inn døgndose som antall tabletter/doser (nesespray).",
+    helpText: "Styrken er allerede omregnet fra µg til mg.",
   },
   {
     id: "fentanyl-sublingval-intranasal",
@@ -78,8 +77,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["sublingval", "intranasal"],
     omeqFactor: 250,
     isShortActing: true,
-    helpText:
-      "Styrken er allerede omregnet fra µg til mg. Legg inn døgndose som antall tabletter/doser (nesespray).",
+    helpText: "Styrken er allerede omregnet fra µg til mg.",
   },
   {
     id: "fentanyl-transdermal",
@@ -88,7 +86,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["transdermal"],
     omeqFactor: 2.4,
     isPatch: true,
-    helpText: "For depotplaster er døgndose ikke nødvendig. Velg riktig styrke.",
+    helpText: "Antall plaster er ikke nødvendig å skrive. Velg riktig styrke.",
   },
   {
     id: "hydromorfon-oral",
@@ -134,7 +132,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["oral", "rektal"],
     omeqFactor: 0.1,
     helpText:
-      "Styke til kodein er allerede valgt. Legg inn døgndose som antall tabletter/stikkpiller.",
+      "Styke til kodein er allerede valgt.",
   },
   {
     id: "metadon-oral",
@@ -142,7 +140,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     atcCode: ["N07BC02"],
     route: ["oral"],
     omeqFactor: 6,
-    helpText: "Vær oppmerksom på ulike styrker. Legg inn døgndose i mg, ikke i ml.",
+    helpText: "Vær oppmerksom på ulike styrker.",
   },
   {
     id: "metadon-parenteral",
@@ -181,7 +179,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["oral"],
     omeqFactor: 1.5,
     helpText:
-      "Styrken for virkestoffet oksykodon er allerede valgt. Legg inn døgndose som antall tabletter/doser.",
+      "Styrken for virkestoffet oksykodon er allerede valgt.",
   },
   {
     id: "oksykodon-parenteral",

@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import { Alert, Box, TextField, Typography } from "@mui/material";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Box, InputAdornment, TextField, Tooltip, Typography } from "@mui/material";
+import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 
 import styles from "../../../styles/app.module.css";
 
@@ -17,10 +18,14 @@ export interface OMEQRowValue {
 interface Props {
   value: OMEQRowValue;
   onChange: (next: OMEQRowValue) => void;
+  autoFocusMedicationInput?: boolean;
 }
 
-export const OMEQRow = ({ value, onChange }: Props) => {
+export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) => {
   const productIndex = useMemo(() => buildProductIndex(), []);
+
+  const doseInputRef = useRef<HTMLInputElement | null>(null);
+  const prevSelectedProductKeyRef = useRef<string>("");
 
   const parsed = useMemo(
     () => parseMedicationInput(value.medicationText, productIndex),
@@ -44,12 +49,48 @@ export const OMEQRow = ({ value, onChange }: Props) => {
 
   const isPatch = parsed.product?.form?.toLowerCase() === "depotplaster";
 
+  useEffect(() => {
+    // When the user selects a valid product (or it becomes uniquely identified),
+    // automatically move focus to "Antall per døgn" for faster input.
+    if (isPatch) return;
+
+    const key = parsed.product
+      ? `${parsed.product.atcCode ?? ""}|${parsed.product.name ?? ""}|${parsed.product.form ?? ""}`
+      : "";
+
+    // Only focus when we transition to a new selected product
+    if (!key || key === prevSelectedProductKeyRef.current) return;
+
+    prevSelectedProductKeyRef.current = key;
+
+    // Wait a tick so MUI input is mounted/updated before focusing
+    requestAnimationFrame(() => {
+      doseInputRef.current?.focus();
+      doseInputRef.current?.select?.();
+    });
+  }, [parsed.product, isPatch]);
+
+  const [isDoseFocused, setIsDoseFocused] = useState(false);
+  const MAX_UNITS_PER_DAY = 20;
+
   const dailyDose = useMemo(() => {
     const raw = value.doseText.trim();
     if (!raw) return null;
     const n = Number(raw.replace(",", "."));
     return Number.isFinite(n) ? n : null;
   }, [value.doseText]);
+
+  const doseOverLimit = useMemo(() => {
+    if (isPatch) return false;
+    if (dailyDose == null) return false;
+    return dailyDose > MAX_UNITS_PER_DAY;
+  }, [isPatch, dailyDose]);
+
+  // Use this value everywhere in calculations so we stop computing when the input is clearly wrong.
+  const effectiveDailyDose = useMemo(() => {
+    if (doseOverLimit) return null;
+    return dailyDose;
+  }, [doseOverLimit, dailyDose]);
 
   const strengthMg = useMemo(() => {
     const s = parsed.strength;
@@ -60,23 +101,44 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     const unit = String(s.unit).toLowerCase();
     if (unit === "mg") return v;
     if (unit === "g") return v * 1000;
-    if (unit === "µg" || unit === "ug") return v / 1000;
+    if (unit === "µg" || unit === "ug" || unit === "mcg") return v / 1000;
     return null;
   }, [parsed.strength]);
 
-  const totalMg = useMemo(() => {
-    if (isPatch) return null;
-    if (dailyDose == null || strengthMg == null) return null;
-    return dailyDose * strengthMg;
-  }, [isPatch, dailyDose, strengthMg]);
+  const strengthForCalc = useMemo(() => {
+    if (!parsed.strength) return null;
+
+    // For depotplaster the calculator typically expects µg/mcg per time (perHour=true).
+    // Do NOT normalize to mg here.
+    if (isPatch) {
+      const unitLower = String(parsed.strength.unit).toLowerCase();
+      const normalizedUnit = unitLower === "ug" ? "µg" : parsed.strength.unit;
+
+      return {
+        value: parsed.strength.value,
+        unit: normalizedUnit,
+        perHour: parsed.strength.perHour,
+      };
+    }
+
+    if (strengthMg == null) return null;
+
+    // For tablets/capsules etc. ensure calculator receives mg
+    return {
+      value: strengthMg,
+      unit: "mg",
+      perHour: parsed.strength.perHour,
+    };
+  }, [parsed.strength, strengthMg, isPatch]);
+
 
   const result = useMemo(() => {
     return calculateOMEQ({
       product: parsed.product ?? null,
-      dailyDose: isPatch ? null : dailyDose,
-      strength: parsed.strength ?? null,
+      dailyDose: isPatch ? null : effectiveDailyDose,
+      strength: strengthForCalc,
     });
-  }, [parsed.product, parsed.strength, dailyDose, isPatch]);
+  }, [parsed.product, strengthForCalc, effectiveDailyDose, isPatch]);
 
   const omeqText = useMemo(() => {
     if (result.omeq == null) return "";
@@ -88,8 +150,6 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     if (!parsed.product) return "";
 
     switch (result.reason) {
-      case "missing-input":
-        return isPatch ? "" : "Fyll inn døgndose for å beregne OMEQ.";
       case "missing-strength":
         return isPatch
           ? "Fant ikke plasterstyrke (µg/time) for preparatet."
@@ -108,7 +168,9 @@ export const OMEQRow = ({ value, onChange }: Props) => {
       default:
         return "";
     }
-  }, [parsed.product, result.reason, isPatch]);
+  }, [parsed.product, result.reason, isPatch, doseOverLimit]);
+
+  const mgWarningText = `Det ser ut som du har skrevet mg. Skriv antall tablett/kapsel/dose per døgn.`;
 
   const infoText = useMemo(() => {
     if (!matchedOpioid?.helpText) return "";
@@ -122,10 +184,37 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     return "";
   }, [isPatch, matchedOpioid?.helpText, result.reason]);
 
-  const totalText = useMemo(() => {
-    if (totalMg == null) return "";
-    return String(Math.round((totalMg + Number.EPSILON) * 100) / 100);
-  }, [totalMg]);
+
+  const doseLooksLikeMg = useMemo(() => {
+    // Reuse this name for styling/error state: anything over limit is most likely mg.
+    return doseOverLimit;
+  }, [doseOverLimit]);
+
+  const doseHelperText = useMemo(() => {
+    if (isPatch) return "";
+
+    const raw = value.doseText.trim();
+
+    // Only show helper text when the dose field is active (focused) or the user has typed something.
+    if (!isDoseFocused && !raw) return "";
+
+    // While focused but empty: show a short guidance.
+    if (!raw) return "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
+
+    if (doseOverLimit) return mgWarningText;
+
+    // When user has typed a value but we can't compute mg yet.
+    if (dailyDose == null || strengthMg == null)
+      return "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
+    const impliedTotalMg = dailyDose * strengthMg;
+    const roundedTotal = Math.round((impliedTotalMg + Number.EPSILON) * 100) / 100;
+    const substance = substanceText || "virkestoff";
+
+    if (!Number.isFinite(roundedTotal))
+      return "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
+
+    return `Tilsvarer ${roundedTotal} mg ${substance} per døgn.`;
+  }, [isPatch, value.doseText, isDoseFocused, dailyDose, strengthMg, substanceText, doseOverLimit]);
 
   return (
     <Box className={styles.omeqRow}>
@@ -133,11 +222,12 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         <MedicationInput
           value={value.medicationText}
           onChange={(text) => onChange({ ...value, medicationText: text })}
+          autoFocus={autoFocusMedicationInput}
         />
         <Typography
-          variant="body2"
+          variant="overline"
           color="text.secondary"
-          sx={{ mt: 0.5, visibility: substanceText ? "visible" : "hidden" }}
+          sx={{ mt: 0.05, visibility: substanceText ? "visible" : "hidden" }}
         >
           Virkestoff: {substanceText || "-"}
         </Typography>
@@ -166,36 +256,82 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         />
       </Box>
 
-      <TextField
-        label={isPatch ? "Ingen døgndose" : "Døgndose"}
-        placeholder={isPatch ? "" : parsed.strength?.perHour ? "F.eks. 25" : "F.eks. 2 tabletter"}
-        value={isPatch ? "" : value.doseText}
-        onChange={(e) => onChange({ ...value, doseText: e.target.value })}
-        inputProps={{ inputMode: "decimal" }}
-        fullWidth
-        disabled={isPatch}
-        sx={{
-          "& .MuiOutlinedInput-root": {
-            "& fieldset": {
-              borderColor: "primary.main",
+      <Tooltip
+        title={doseHelperText}
+        open={!isPatch && !!doseHelperText && isDoseFocused}
+        placement="top-start"
+        arrow
+        PopperProps={{
+          modifiers: [
+            {
+              name: "offset",
+              options: { offset: [0, 8] },
             },
-            "&:hover fieldset": {
-              borderColor: "primary.main",
-            },
-            "&.Mui-focused fieldset": {
-              borderColor: "primary.main",
-            },
-          },
+          ],
         }}
-      />
-
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        sx={{ mt: 0.5, visibility: totalMg != null ? "visible" : "hidden" }}
+        disableFocusListener
+        disableHoverListener
+        disableTouchListener
       >
-        {totalMg != null ? `Total: ${totalText} mg` : "Total: 0 mg"}
-      </Typography>
+        <Box sx={{ width: "100%" }}>
+          <TextField
+            label={isPatch ? "Ingen døgndose" : "Antall per døgn"}
+            inputRef={doseInputRef}
+            placeholder={isPatch ? "" : "F.eks. 4"}
+            value={isPatch ? "" : value.doseText}
+            onChange={(e) => onChange({ ...value, doseText: e.target.value })}
+            inputProps={{ inputMode: "decimal", "aria-label": "Antall per døgn" }}
+            fullWidth
+            disabled={isPatch}
+            error={doseLooksLikeMg && !isPatch}
+            // Keep helperText empty to avoid truncation; tooltip shows the full guidance when active.
+            helperText={""}
+            onFocus={() => setIsDoseFocused(true)}
+            onBlur={() => setIsDoseFocused(false)}
+            InputProps={{
+              endAdornment: !isPatch ? (
+                <InputAdornment position="end">
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                    {doseLooksLikeMg && (
+                      <Tooltip title={mgWarningText} placement="top" arrow>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            color: "warning.main",
+                            cursor: "help",
+                          }}
+                        >
+                          <WarningAmberOutlinedIcon fontSize="small" />
+                        </Box>
+                      </Tooltip>
+                    )}
+                    <Box component="span" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
+                      stk/døgn
+                    </Box>
+                  </Box>
+                </InputAdornment>
+              ) : undefined,
+            }}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                "& fieldset": {
+                  borderColor: "primary.main",
+                },
+                "&:hover fieldset": {
+                  borderColor: "primary.main",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: "primary.main",
+                },
+              },
+            }}
+          />
+        </Box>
+      </Tooltip>
+
 
       <TextField
         label="OMEQ"
@@ -223,7 +359,24 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         </Typography>
       )}
       {!!infoText && (
-        <Alert severity="info" variant="outlined" sx={{ mt: 1, borderColor: "primary.main" }}>
+        <Alert
+          severity="info"
+          icon={false}
+          sx={{
+            mt: 0.5,
+            width: "fit-content",
+            maxWidth: "100%",
+            px: 1,
+            py: 0.35,
+            borderRadius: 1.5,
+            backgroundColor: "rgba(25, 118, 210, 0.08)",
+            color: "text.primary",
+            fontSize: "0.7rem",
+            border: "none",
+            display: "inline-flex",
+            alignItems: "center",
+          }}
+        >
           {infoText}
         </Alert>
       )}

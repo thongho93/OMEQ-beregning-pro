@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Autocomplete, TextField, Box, Typography } from "@mui/material";
 
 import { buildProductIndex, parseMedicationInput } from "../lib/parseMedicationInput";
@@ -7,6 +7,7 @@ import { ATC_PRODUCTS } from "../data/atcProducts";
 interface MedicationInputProps {
   value: string;
   onChange: (value: string) => void;
+  autoFocus?: boolean;
 }
 
 type SuggestionOption = {
@@ -22,8 +23,35 @@ const getProductLabel = (p: any, strength?: string, varenummer?: string) => {
   return `${base}${f}${s}${v}`.trim();
 };
 
-export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
+export const MedicationInput = ({ value, onChange, autoFocus }: MedicationInputProps) => {
   const productIndex = useMemo(() => buildProductIndex(), []);
+
+  const inputElRef = useRef<HTMLInputElement | null>(null);
+
+  const wireInputRef = useCallback(
+    (node: HTMLInputElement | null, muiInputRef?: any) => {
+      inputElRef.current = node;
+
+      // Preserve MUI/Autocomplete internal ref wiring
+      if (!muiInputRef) return;
+      if (typeof muiInputRef === "function") {
+        muiInputRef(node);
+      } else if (typeof muiInputRef === "object") {
+        muiInputRef.current = node;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!autoFocus) return;
+
+    // Autocomplete often re-renders; defer focus to the next frame
+    requestAnimationFrame(() => {
+      inputElRef.current?.focus();
+      inputElRef.current?.select?.();
+    });
+  }, [autoFocus]);
 
   const options = useMemo<SuggestionOption[]>(() => {
     return Object.values(ATC_PRODUCTS)
@@ -105,20 +133,33 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
     if (!numericQuery) return;
     if (lastAutoConvertedRef.current === numericQuery) return;
 
+    // 1) Prefer exact lookup via map
     const hit = productByVarenummer.get(numericQuery);
-    if (!hit?.product) return;
+    if (hit?.product) {
+      const strengthText = (hit.strength ?? "").trim();
+      const formText = hit.product?.form ? ` ${hit.product.form}` : "";
+      const base = `${hit.product.name}${formText}${strengthText ? ` ${strengthText}` : ""}`.trim();
+      const next = `${base} (${numericQuery})`.trim();
 
-    const strengthText = (hit.strength ?? "").trim();
-    const formText = hit.product?.form ? ` ${hit.product.form}` : "";
-    const base = `${hit.product.name}${formText}${strengthText ? ` ${strengthText}` : ""}`.trim();
-    const next = `${base} (${numericQuery})`.trim();
-
-    // Avoid rewriting if already in desired form
-    if (next && value.trim() !== next) {
-      lastAutoConvertedRef.current = numericQuery;
-      onChange(next);
+      if (next && value.trim() !== next) {
+        lastAutoConvertedRef.current = numericQuery;
+        onChange(next);
+      }
+      return;
     }
-  }, [isPureVarenummerInput, numericQuery, onChange, productByVarenummer, value]);
+
+    // 2) Fallback: if options contain an exact varenummer match in parentheses, select it.
+    // This makes "auto select" work even if the map doesn't have the varenummer.
+    const exactOption = options.find((o) => {
+      const m = o.label.match(/\((\d+)\)\s*$/);
+      return m?.[1] === numericQuery;
+    });
+
+    if (exactOption && value.trim() !== exactOption.value) {
+      lastAutoConvertedRef.current = numericQuery;
+      onChange(exactOption.value);
+    }
+  }, [isPureVarenummerInput, numericQuery, onChange, productByVarenummer, value, options]);
 
   return (
     <Box className="medicationInput">
@@ -138,10 +179,39 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
           const numeric = raw.match(/^0*(\d+)$/)?.[1] ?? null;
 
           if (numeric) {
-            const hit = productByVarenummer.get(numeric);
-            if (!hit?.product) return [];
-            const exactLabel = getProductLabel(hit.product, hit.strength, numeric);
-            return opts.filter((o) => o.label === exactLabel).slice(0, 25);
+            // While typing digits, show matches by varenummer prefix (e.g. "293" -> all (293xxx)).
+            // Options include varenummer at the end: "... (504394)".
+            const prefix = numeric;
+
+            const matches = opts.filter((o) => {
+              const m = o.label.match(/\((\d+)\)\s*$/);
+              if (!m) return false;
+              const vn = m[1];
+              return vn.startsWith(prefix);
+            });
+
+            // If no options match (e.g. data mismatch), fall back to map lookup for exact varenummer.
+            if (matches.length === 0) {
+              const hit = productByVarenummer.get(prefix);
+              if (!hit?.product) return [];
+              const exactLabel = getProductLabel(hit.product, hit.strength, prefix);
+              return opts.filter((o) => o.label === exactLabel).slice(0, 25);
+            }
+
+            // Prefer exact varenummer first, then shorter varenummer, then lexicographic.
+            const exactFirst = matches.sort((a, b) => {
+              const av = a.label.match(/\((\d+)\)\s*$/)?.[1] ?? "";
+              const bv = b.label.match(/\((\d+)\)\s*$/)?.[1] ?? "";
+
+              const aExact = av === prefix ? 0 : 1;
+              const bExact = bv === prefix ? 0 : 1;
+              if (aExact !== bExact) return aExact - bExact;
+
+              if (av.length !== bv.length) return av.length - bv.length;
+              return a.label.localeCompare(b.label, "nb");
+            });
+
+            return exactFirst.slice(0, 25);
           }
 
           const q = raw.toLowerCase();
@@ -157,16 +227,23 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
         renderInput={(params) => (
           <TextField
             {...params}
+            inputRef={(node) => wireInputRef(node, (params as any).inputProps?.ref)}
             label="Preparat og styrke"
-            placeholder='F.eks. "Tramagetic OD 200 mg"'
+            placeholder="Legg inn varenummer eller preparatnavn"
             fullWidth
             inputProps={{
               ...params.inputProps,
               onKeyDown: (e) => {
-                // Prevent full page reload / form submit when pressing Enter in this field
+                // Prevent full page reload / form submit when pressing Enter in this field.
+                // BUT allow Enter to select an option when the Autocomplete popup is open.
                 if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.stopPropagation();
+                  const expanded =
+                    (e.currentTarget as HTMLElement).getAttribute("aria-expanded") === "true";
+
+                  if (!expanded) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
                 }
                 // Preserve any handler MUI provided
                 // @ts-expect-error: MUI inputProps typing doesn't always include onKeyDown
