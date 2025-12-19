@@ -19,6 +19,8 @@ type Props = {
   onCancel: () => void;
   onSave: () => void;
   onStartEdit: () => void;
+  onDelete: () => void;
+  deleting: boolean;
 
   onCopy: () => void;
 
@@ -38,6 +40,8 @@ export default function StandardTekstContent({
   onCancel,
   onSave,
   onStartEdit,
+  onDelete,
+  deleting,
   onCopy,
   previewNode,
 }: Props) {
@@ -123,10 +127,12 @@ export default function StandardTekstContent({
               </Typography>
 
               {isAdmin && (
-                <Box className={styles.editRowBottom}>
+                <Box className={styles.editRowBottom} display="flex" gap={1}>
                   <Button
-                    variant="outlined"
+                    variant="contained"
                     size="small"
+                    color="primary"
+                    sx={{ color: "#fff" }}
                     onClick={(e) => {
                       e.stopPropagation();
                       onStartEdit();
@@ -134,6 +140,20 @@ export default function StandardTekstContent({
                     className={styles.pillButton}
                   >
                     Endre
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="error"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                    className={styles.pillButton}
+                    disabled={saving || deleting}
+                  >
+                    Slett
                   </Button>
                 </Box>
               )}

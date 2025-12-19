@@ -6,6 +6,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../../firebase/firebase";
 import type { StandardTekst } from "../types";
@@ -53,5 +54,10 @@ export const standardTeksterApi = {
       content: newDoc.content,
       updatedAt: new Date(),
     };
+  },
+
+  async remove(id: string): Promise<void> {
+    const ref = doc(db, COL_NAME, id);
+    await deleteDoc(ref);
   },
 };

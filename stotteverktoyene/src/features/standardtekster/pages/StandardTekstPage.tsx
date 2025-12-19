@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Box, Collapse, Paper, Typography, Button, Snackbar } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Collapse,
+  Paper,
+  Typography,
+  Button,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from "@mui/material";
 import StandardTekstSidebar from "../components/StandardTekstSidebar";
 import StandardTekstContent from "../components/StandardTekstContent";
 import { standardTeksterApi } from "../services/standardTeksterApi";
@@ -15,6 +27,8 @@ import { useStandardTekster } from "../hooks/useStandardTekster";
 import { useStandardTekstHotkeys } from "../hooks/useStandardTekstHotkeys";
 
 import PreparatPanel from "../components/PreparatPanel";
+
+import { deleteStandardTekst } from "../utils/deleteStandardTekst";
 
 export default function StandardTekstPage() {
   const {
@@ -39,6 +53,9 @@ export default function StandardTekstPage() {
   const [draftContent, setDraftContent] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
   const [creating, setCreating] = useState<boolean>(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { preparatRows, resetPreparatRows, clearPreparats, addPickedPreparat, removePreparatById } =
     usePreparatRows();
@@ -186,6 +203,41 @@ export default function StandardTekstPage() {
     }
   };
 
+  const requestDelete = () => {
+    if (!selected) return;
+    setDeleteOpen(true);
+  };
+
+  const closeDelete = () => {
+    if (deleting) return;
+    setDeleteOpen(false);
+  };
+
+  const confirmDelete = async () => {
+    if (!selected) return;
+    setDeleting(true);
+    setErrorLocal(null);
+
+    try {
+      await deleteStandardTekst({
+        id: selected.id,
+        setItems,
+        setSelectedId,
+        onError: (msg) => setErrorLocal(msg),
+      });
+
+      setDeleteOpen(false);
+      setIsEditing(false);
+      setDraftTitle("");
+      setDraftContent("");
+      resetPreparatRows();
+    } catch {
+      // errorLocal is set via onError
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Box className={styles.page}>
       <Box className={styles.header}>
@@ -195,12 +247,14 @@ export default function StandardTekstPage() {
 
         <Box className={styles.headerActions}>
           <Button
-            variant="contained"
+            variant="text"
             size="small"
             onClick={() => setShowGuide((v) => !v)}
-            className={styles.pillButton}
+            className={styles.headerLinkButton}
             endIcon={
-              <ExpandMoreIcon className={showGuide ? styles.expandIconOpen : styles.expandIcon} />
+              <ExpandMoreIcon
+                className={showGuide ? styles.expandIconOpen : styles.expandIcon}
+              />
             }
           >
             {showGuide ? "Skjul bruksanvisning" : "Vis bruksanvisning"}
@@ -267,12 +321,14 @@ export default function StandardTekstPage() {
             isEditing={isEditing}
             draftTitle={draftTitle}
             draftContent={draftContent}
-            saving={saving}
+            saving={saving || deleting}
             onDraftTitleChange={setDraftTitle}
             onDraftContentChange={setDraftContent}
             onCancel={cancelEdit}
             onSave={saveEdit}
             onStartEdit={startEdit}
+            onDelete={requestDelete}
+            deleting={deleting}
             onCopy={copyBodyToClipboard}
             previewNode={renderContentWithPreparatHighlight(
               previewContent || "(Tom tekst)",
@@ -282,6 +338,25 @@ export default function StandardTekstPage() {
           />
         </Box>
       </Box>
+      <Dialog open={deleteOpen} onClose={closeDelete}>
+        <DialogTitle>Slett standardtekst?</DialogTitle>
+        <DialogContent>
+          Dette kan ikke angres.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDelete} disabled={deleting}>
+            Avbryt
+          </Button>
+          <Button
+            onClick={confirmDelete}
+            color="error"
+            variant="contained"
+            disabled={deleting}
+          >
+            {deleting ? "Sletter..." : "Slett"}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Snackbar
         open={copied}
         autoHideDuration={1500}
