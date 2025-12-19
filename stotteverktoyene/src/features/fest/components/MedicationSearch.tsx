@@ -12,6 +12,7 @@ import {
 
 import meds from "../meds.json";
 import pimProducts from "./pimProducts.json";
+import hvProducts from "./hvProducts.json";
 import { festToSearchIndex } from "../mappers/festToSearchIndex";
 import { pimToSearchIndex } from "../mappers/pimToSearchIndex";
 import type { SearchIndexItem } from "../../../utils/types";
@@ -20,19 +21,19 @@ type Med = {
   // Unique key used by UI (prefix with source to avoid collisions)
   id: string;
   // Source for debugging / future UI labels
-  source: "FEST" | "PIM";
+  source: "FEST" | "PIM" | "HV";
 
   // Display fields used by current UI
   varenavn: string | null;
   navnFormStyrke: string | null;
 
-  // FEST fields (null for PIM)
+  // FEST fields (null for PIM/HV)
   atc: string | null;
   virkestoff: string | null;
   produsent: string | null;
   reseptgruppe: string | null;
 
-  // PIM-only
+  // PIM/HV only
   farmaloggNumber?: string | null;
 
   // Search backing text (normalized in mapper)
@@ -150,6 +151,7 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
   const allItems: Med[] = useMemo(() => {
     const festRaw = (meds as any[]) ?? [];
     const pimRaw = (pimProducts as any[]) ?? [];
+    const hvRaw = (hvProducts as any[]) ?? [];
 
     // Normalize both sources into a shared SearchIndexItem shape
     const festIndex: SearchIndexItem[] = festToSearchIndex(
@@ -166,11 +168,29 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
       pimRaw.map((p) => ({
         farmaloggNumber: String(p.farmaloggNumber),
         name: p.name ?? undefined,
-        nameFormStrength: p.nameFormStrength ?? undefined,
+        nameFormStrength:
+          ((p as any).nameFormStrength && String((p as any).nameFormStrength).trim().length > 0
+            ? (p as any).nameFormStrength
+            : (p as any).name) ?? undefined,
       }))
     );
 
-    const searchIndex: SearchIndexItem[] = [...festIndex, ...pimIndex];
+    // HV products: same backing fields as PIM (farmaloggNumber + name)
+    // We reuse the PIM mapper to keep normalization/tokenization identical.
+    const hvIndex: SearchIndexItem[] = pimToSearchIndex(
+      hvRaw.map((p) => ({
+        farmaloggNumber: String(p.farmaloggNumber),
+        name: p.name ?? undefined,
+        nameFormStrength: p.name ?? undefined,
+      }))
+    ).map((item) => ({
+      ...item,
+      source: "HV" as const,
+      // make ids unique across sources
+      id: String(item.farmaloggNumber ?? item.id),
+    }));
+
+    const searchIndex: SearchIndexItem[] = [...festIndex, ...pimIndex, ...hvIndex];
 
     // Keep a lookup for FEST so we can preserve extra fields (produsent, etc.)
     const festByKey = new Map<string, any>();
@@ -199,10 +219,10 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
         } satisfies Med;
       }
 
-      // PIM
+      // PIM / HV
       return {
         id: key,
-        source: "PIM",
+        source: item.source as "PIM" | "HV",
         farmaloggNumber: item.farmaloggNumber ?? String(item.id),
         varenavn: item.name ?? item.displayName ?? null,
         navnFormStyrke: item.nameFormStrength ?? item.displayName ?? item.name ?? null,
@@ -341,14 +361,18 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
     };
 
     for (const m of allItems) {
-      const isPim = m.source === "PIM";
-      if (restrictToPimOnly && !isPim) continue;
+      const isPimLike = m.source === "PIM" || m.source === "HV";
+      if (restrictToPimOnly && !isPimLike) continue;
 
-      const hayText = m.searchText || (m.navnFormStyrke ?? m.varenavn ?? "");
+      // Ensure identifier-only matches work even if a row has missing/empty nameFormStrength/searchText
+      const hayText =
+        m.searchText ||
+        (m.navnFormStyrke ?? m.varenavn ?? "") ||
+        (isPimLike ? String(m.farmaloggNumber ?? "") : "");
       if (!hayText) continue;
 
-      // If query looks like an identifier search, match against farmaloggNumber for PIM
-      if (isPim && idNumberTokens.length > 0) {
+      // If query looks like an identifier search, match against farmaloggNumber for PIM/HV
+      if (isPimLike && idNumberTokens.length > 0) {
         const id = String(m.farmaloggNumber ?? "");
         const okId = idNumberTokens.every((t) => id.startsWith(t) || id === t);
         if (!okId) continue;
@@ -394,7 +418,7 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
         if (hayTokens.includes(t)) score += 3;
       }
 
-      if (isPim && idNumberTokens.length > 0) {
+      if (isPimLike && idNumberTokens.length > 0) {
         const id = String(m.farmaloggNumber ?? "");
         for (const t of idNumberTokens) {
           if (id === t) score += 20;
@@ -432,20 +456,26 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
       }
     }
 
-    // If this is an identifier-only search (e.g. "3111"), prefer exact farmaloggNumber matches.
-    // This prevents longer numbers like "311148" from showing up when the user typed "3111".
+    // Identifier-only searches: show prefix matches while the user is still typing.
+    // Only prefer exact farmaloggNumber matches once the input looks like a *full* id
+    // (so short prefixes like "8446" don't immediately collapse to the exact "8446" hit).
     if (restrictToPimOnly && idNumberTokens.length > 0) {
-      const exact = out.filter(({ med }) => {
-        if (med.source !== "PIM") return false;
-        const id = String(med.farmaloggNumber ?? "");
-        return idNumberTokens.some((t) => id === t);
-      });
+      const qNormDigits = normalizeForSearch(query).replace(/\s+/g, "");
+      const looksLikeFullId = /^\d{5,}$/.test(qNormDigits);
 
-      if (exact.length > 0) {
-        return exact
-          .sort((a, b) => b.score - a.score)
-          .slice(0, maxResults)
-          .map((x) => x.med);
+      if (looksLikeFullId) {
+        const exact = out.filter(({ med }) => {
+          if (med.source !== "PIM" && med.source !== "HV") return false;
+          const id = String(med.farmaloggNumber ?? "");
+          return idNumberTokens.some((t) => id === t);
+        });
+
+        if (exact.length > 0) {
+          return exact
+            .sort((a, b) => b.score - a.score)
+            .slice(0, maxResults)
+            .map((x) => x.med);
+        }
       }
     }
 
@@ -484,15 +514,33 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
     if (!q) return;
     if (results.length !== 1) return;
 
-    // Only auto-pick on identifier-like searches (e.g. farmaloggNumber such as "3111" / "364824"),
-    // so the user can still choose among variants (stikkpille/tablett/etc.) when searching by name.
+    // Auto-pick for numeric searches when the typed digits are an unambiguous prefix.
+    // This keeps the old behavior (auto-pick) for cases like "7424" when only one product matches,
+    // while preventing the "8446" problem when longer ids like "84465" also exist.
     const qNorm = normalizeForSearch(q).replace(/\s+/g, "");
-    const isIdLike = /^\d{4,}$/.test(qNorm);
+    const isNumeric = /^\d{4,}$/.test(qNorm);
+    if (!isNumeric) return;
 
-    if (!isIdLike) return;
+    const only = results[0];
+    const id = String(only.farmaloggNumber ?? "");
+    if (!id) return;
+    if (!(id === qNorm || id.startsWith(qNorm))) return;
 
-    pickResult(results[0]);
-  }, [query, results]);
+    const isPimLike = (m: Med) => m.source === "PIM" || m.source === "HV";
+
+    // If ANY other PIM/HV id starts with the same prefix, don't auto-pick (user may be typing a longer id).
+    const hasOtherWithSamePrefix = allItems.some((m) => {
+      if (!isPimLike(m)) return false;
+      const mid = String(m.farmaloggNumber ?? "");
+      if (!mid) return false;
+      if (mid === id) return false;
+      return mid.startsWith(qNorm);
+    });
+
+    if (hasOtherWithSamePrefix) return;
+
+    pickResult(only);
+  }, [query, results, allItems]);
 
   return (
     <Box>
@@ -545,9 +593,9 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
           }
 
           if (e.key === "Enter") {
-            if (open && results.length > 1) {
+            if (open && results.length > 0) {
               const idx = highlightedIndex >= 0 ? highlightedIndex : 0;
-              const m = results[idx];
+              const m = results[idx] ?? results[0];
               if (m) {
                 e.preventDefault();
                 pickResult(m);
@@ -559,7 +607,7 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
       />
 
       <Popper
-        open={open && results.length > 1}
+        open={open && results.length > 0}
         anchorEl={anchorRef.current}
         placement="bottom-start"
         sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
@@ -600,7 +648,7 @@ export default function MedicationSearch({ maxResults = 25, onPick, inputRef }: 
 
                     return (
                       <ListItemText
-                        primary={m.navnFormStyrke ?? m.varenavn ?? "(uten navn)"}
+                        primary={`${m.navnFormStyrke ?? m.varenavn ?? "(uten navn)"}${m.farmaloggNumber ? ` (${m.farmaloggNumber})` : ""}`}
                         secondary={secondaryParts.length ? secondaryParts.join(" • ") : undefined}
                       />
                     );

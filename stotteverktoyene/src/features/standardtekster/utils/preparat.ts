@@ -25,6 +25,9 @@ const MANUFACTURER_TOKENS = new Set(
     "apofri",
     "medical",
     "valley",
+    "emerald",
+    "abacus",
+
     // Some frequent brand owners (kept here only when they appear as trailing company token)
     "pfizer",
     "bayer",
@@ -97,6 +100,7 @@ const DOSAGE_FORM_TOKENS = new Set(
     "depotkaps",
     "enterodepottab",
     "enterokaps",
+    "spr",
   ].map((s) => s.toLowerCase())
 );
 

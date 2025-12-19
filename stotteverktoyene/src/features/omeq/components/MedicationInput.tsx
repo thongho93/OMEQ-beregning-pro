@@ -160,6 +160,19 @@ export const MedicationInput = ({ value, onChange }: MedicationInputProps) => {
             label="Preparat og styrke"
             placeholder='F.eks. "Tramagetic OD 200 mg"'
             fullWidth
+            inputProps={{
+              ...params.inputProps,
+              onKeyDown: (e) => {
+                // Prevent full page reload / form submit when pressing Enter in this field
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+                // Preserve any handler MUI provided
+                // @ts-expect-error: MUI inputProps typing doesn't always include onKeyDown
+                params.inputProps?.onKeyDown?.(e);
+              },
+            }}
             sx={{
               "& .MuiOutlinedInput-root": {
                 "& fieldset": {
