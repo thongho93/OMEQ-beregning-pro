@@ -1,4 +1,4 @@
-export type SearchSource = "FEST" | "PIM";
+export type SearchSource = "FEST" | "PIM" | "HV";
 
 export type SearchIndexItem = {
   source: SearchSource;
@@ -18,10 +18,10 @@ export type SearchIndexItem = {
   substance?: string;       // virkestoff
   prescriptionGroup?: string; // reseptgruppe
 
-  // PIM-only (valgfritt)
+  // PIM/HV (valgfritt)
   farmaloggNumber?: string;
 
-  // PIM: behold begge, fordi de brukes forskjellig (visning vs søk vs detaljer)
+  // PIM/HV: behold begge, fordi de brukes forskjellig (visning vs søk vs detaljer)
   name?: string;
   nameFormStrength?: string;
 };
