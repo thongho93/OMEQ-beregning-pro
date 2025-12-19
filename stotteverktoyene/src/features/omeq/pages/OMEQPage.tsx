@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -45,17 +45,32 @@ export default function OMEQPage() {
   const [rows, setRows] = useState<Row[]>([makeRow()]);
   const [showHelp, setShowHelp] = useState(false);
   const [showInfoTable, setShowInfoTable] = useState(false);
+  const [focusRowId, setFocusRowId] = useState<string | null>(null);
 
   const setRowById = (id: string, next: OMEQRowValue) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...next } : r)));
   };
 
   const addRow = () => {
-    setRows((prev) => [...prev, makeRow()]);
+    const newRow = makeRow();
+    setRows((prev) => [...prev, newRow]);
+    setFocusRowId(newRow.id);
   };
 
+  useEffect(() => {
+    if (!focusRowId) return;
+
+    const t = setTimeout(() => setFocusRowId(null), 0);
+    return () => clearTimeout(t);
+  }, [focusRowId]);
+
   const resetAll = () => {
-    window.location.reload();
+    // Reset to initial state without reloading the whole app
+    const firstRow = makeRow();
+    setRows([firstRow]);
+    setShowHelp(false);
+    setShowInfoTable(false);
+    setFocusRowId(firstRow.id);
   };
 
   const showDividers = useMemo(() => rows.length > 1, [rows.length]);
@@ -160,36 +175,36 @@ export default function OMEQPage() {
   return (
     <Container maxWidth={false} className={styles.appContainer}>
       <Paper elevation={3} className={styles.appCard}>
-        <Typography variant="h4" gutterBottom>
-          Beregning av OMEQ
-        </Typography>
 
-        <Box sx={{ mb: 3 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              flexWrap: "wrap",
-            }}
-          >
+        {/* Header row */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 1.5,
+            gap: 2,
+          }}
+        >
+          <Typography variant="h4" sx={{ m: 0 }}>
+            Beregning av OMEQ
+          </Typography>
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
             <Button
               variant="text"
               size="small"
               onClick={() => setShowHelp((v) => !v)}
               endIcon={showHelp ? <ExpandLessIcon /> : <ExpandMoreIcon />}
               sx={{
-                width: 210,
-                flexShrink: 0,
-                justifyContent: "space-between",
+                minWidth: "auto",
+                padding: "2px 6px",
+                fontSize: "0.75rem",
+                borderRadius: 2,
                 textTransform: "none",
-                backgroundColor: "primary.main",
-                color: "white",
-                padding: "4px 8px",
-                borderRadius: 1,
-                "&:hover": {
-                  backgroundColor: "primary.main",
-                },
+                lineHeight: 1.4,
+                "& .MuiButton-endIcon": { marginLeft: 0.5 },
+                "& .MuiSvgIcon-root": { fontSize: 16 },
               }}
             >
               {showHelp ? "Skjul bruksanvisning" : "Vis bruksanvisning"}
@@ -201,28 +216,28 @@ export default function OMEQPage() {
               onClick={() => setShowInfoTable((v) => !v)}
               endIcon={showInfoTable ? <ExpandLessIcon /> : <ExpandMoreIcon />}
               sx={{
-                width: 210,
-                flexShrink: 0,
-                justifyContent: "space-between",
+                minWidth: "auto",
+                padding: "2px 6px",
+                fontSize: "0.75rem",
+                borderRadius: 2,
                 textTransform: "none",
-                backgroundColor: "primary.main",
-                color: "white",
-                padding: "4px 8px",
-                borderRadius: 1,
-                "&:hover": {
-                  backgroundColor: "primary.main",
-                },
+                lineHeight: 1.4,
+                "& .MuiButton-endIcon": { marginLeft: 0.5 },
+                "& .MuiSvgIcon-root": { fontSize: 16 },
               }}
             >
               {showInfoTable ? "Skjul OMEQ-tabell" : "Vis OMEQ-tabell"}
             </Button>
           </Box>
+        </Box>
 
+        {/* Expandable content – ALWAYS below header */}
+        <Box sx={{ mb: 2 }}>
           <Collapse in={showHelp} timeout="auto" unmountOnExit>
             <Paper
               variant="outlined"
               sx={(theme) => ({
-                mt: 2,
+                mt: 1,
                 p: 2,
                 borderRadius: 2,
                 borderColor: theme.palette.divider,
@@ -291,7 +306,7 @@ export default function OMEQPage() {
             <Paper
               variant="outlined"
               sx={(theme) => ({
-                mt: 2,
+                mt: 1,
                 borderRadius: 2,
                 borderColor: theme.palette.divider,
                 backgroundColor: theme.palette.background.paper,
@@ -333,7 +348,11 @@ export default function OMEQPage() {
 
         {rows.map((r, idx) => (
           <Box key={r.id}>
-            <OMEQRow value={r} onChange={(next) => setRowById(r.id, next)} />
+            <OMEQRow
+              value={r}
+              onChange={(next) => setRowById(r.id, next)}
+              autoFocusMedicationInput={idx === 0 || r.id === focusRowId}
+            />
 
             {idx < rows.length - 1 && showDividers && <Divider sx={{ my: 2 }} />}
 

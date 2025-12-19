@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, InputAdornment, TextField, Tooltip, Typography } from "@mui/material";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 
@@ -18,10 +18,14 @@ export interface OMEQRowValue {
 interface Props {
   value: OMEQRowValue;
   onChange: (next: OMEQRowValue) => void;
+  autoFocusMedicationInput?: boolean;
 }
 
-export const OMEQRow = ({ value, onChange }: Props) => {
+export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) => {
   const productIndex = useMemo(() => buildProductIndex(), []);
+
+  const doseInputRef = useRef<HTMLInputElement | null>(null);
+  const prevSelectedProductKeyRef = useRef<string>("");
 
   const parsed = useMemo(
     () => parseMedicationInput(value.medicationText, productIndex),
@@ -44,6 +48,27 @@ export const OMEQRow = ({ value, onChange }: Props) => {
   const substanceText = matchedOpioid?.substance ?? "";
 
   const isPatch = parsed.product?.form?.toLowerCase() === "depotplaster";
+
+  useEffect(() => {
+    // When the user selects a valid product (or it becomes uniquely identified),
+    // automatically move focus to "Antall per døgn" for faster input.
+    if (isPatch) return;
+
+    const key = parsed.product
+      ? `${parsed.product.atcCode ?? ""}|${parsed.product.name ?? ""}|${parsed.product.form ?? ""}`
+      : "";
+
+    // Only focus when we transition to a new selected product
+    if (!key || key === prevSelectedProductKeyRef.current) return;
+
+    prevSelectedProductKeyRef.current = key;
+
+    // Wait a tick so MUI input is mounted/updated before focusing
+    requestAnimationFrame(() => {
+      doseInputRef.current?.focus();
+      doseInputRef.current?.select?.();
+    });
+  }, [parsed.product, isPatch]);
 
   const [isDoseFocused, setIsDoseFocused] = useState(false);
   const MAX_UNITS_PER_DAY = 20;
@@ -76,23 +101,44 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     const unit = String(s.unit).toLowerCase();
     if (unit === "mg") return v;
     if (unit === "g") return v * 1000;
-    if (unit === "µg" || unit === "ug") return v / 1000;
+    if (unit === "µg" || unit === "ug" || unit === "mcg") return v / 1000;
     return null;
   }, [parsed.strength]);
 
-  const totalMg = useMemo(() => {
-    if (isPatch) return null;
-    if (effectiveDailyDose == null || strengthMg == null) return null;
-    return effectiveDailyDose * strengthMg;
-  }, [isPatch, effectiveDailyDose, strengthMg]);
+  const strengthForCalc = useMemo(() => {
+    if (!parsed.strength) return null;
+
+    // For depotplaster the calculator typically expects µg/mcg per time (perHour=true).
+    // Do NOT normalize to mg here.
+    if (isPatch) {
+      const unitLower = String(parsed.strength.unit).toLowerCase();
+      const normalizedUnit = unitLower === "ug" ? "µg" : parsed.strength.unit;
+
+      return {
+        value: parsed.strength.value,
+        unit: normalizedUnit,
+        perHour: parsed.strength.perHour,
+      };
+    }
+
+    if (strengthMg == null) return null;
+
+    // For tablets/capsules etc. ensure calculator receives mg
+    return {
+      value: strengthMg,
+      unit: "mg",
+      perHour: parsed.strength.perHour,
+    };
+  }, [parsed.strength, strengthMg, isPatch]);
+
 
   const result = useMemo(() => {
     return calculateOMEQ({
       product: parsed.product ?? null,
       dailyDose: isPatch ? null : effectiveDailyDose,
-      strength: parsed.strength ?? null,
+      strength: strengthForCalc,
     });
-  }, [parsed.product, parsed.strength, effectiveDailyDose, isPatch]);
+  }, [parsed.product, strengthForCalc, effectiveDailyDose, isPatch]);
 
   const omeqText = useMemo(() => {
     if (result.omeq == null) return "";
@@ -104,9 +150,6 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     if (!parsed.product) return "";
 
     switch (result.reason) {
-      case "missing-input":
-        if (isPatch) return "";
-        if (doseOverLimit) return "Fyll inn riktig døgndose for å beregne OMEQ.";
       case "missing-strength":
         return isPatch
           ? "Fant ikke plasterstyrke (µg/time) for preparatet."
@@ -141,10 +184,6 @@ export const OMEQRow = ({ value, onChange }: Props) => {
     return "";
   }, [isPatch, matchedOpioid?.helpText, result.reason]);
 
-  const totalText = useMemo(() => {
-    if (totalMg == null) return "";
-    return String(Math.round((totalMg + Number.EPSILON) * 100) / 100);
-  }, [totalMg]);
 
   const doseLooksLikeMg = useMemo(() => {
     // Reuse this name for styling/error state: anything over limit is most likely mg.
@@ -183,11 +222,12 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         <MedicationInput
           value={value.medicationText}
           onChange={(text) => onChange({ ...value, medicationText: text })}
+          autoFocus={autoFocusMedicationInput}
         />
         <Typography
-          variant="body2"
+          variant="overline"
           color="text.secondary"
-          sx={{ mt: 0.5, visibility: substanceText ? "visible" : "hidden" }}
+          sx={{ mt: 0.05, visibility: substanceText ? "visible" : "hidden" }}
         >
           Virkestoff: {substanceText || "-"}
         </Typography>
@@ -236,6 +276,7 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         <Box sx={{ width: "100%" }}>
           <TextField
             label={isPatch ? "Ingen døgndose" : "Antall per døgn"}
+            inputRef={doseInputRef}
             placeholder={isPatch ? "" : "F.eks. 4"}
             value={isPatch ? "" : value.doseText}
             onChange={(e) => onChange({ ...value, doseText: e.target.value })}
@@ -291,13 +332,6 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         </Box>
       </Tooltip>
 
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        sx={{ mt: 0.5, visibility: totalMg != null ? "visible" : "hidden" }}
-      >
-        {totalMg != null ? `Total: ${totalText} mg` : "Total: 0 mg"}
-      </Typography>
 
       <TextField
         label="OMEQ"
@@ -325,7 +359,24 @@ export const OMEQRow = ({ value, onChange }: Props) => {
         </Typography>
       )}
       {!!infoText && (
-        <Alert severity="info" variant="outlined" sx={{ mt: 1, borderColor: "primary.main" }}>
+        <Alert
+          severity="info"
+          icon={false}
+          sx={{
+            mt: 0.5,
+            width: "fit-content",
+            maxWidth: "100%",
+            px: 1,
+            py: 0.35,
+            borderRadius: 1.5,
+            backgroundColor: "rgba(25, 118, 210, 0.08)",
+            color: "text.primary",
+            fontSize: "0.7rem",
+            border: "none",
+            display: "inline-flex",
+            alignItems: "center",
+          }}
+        >
           {infoText}
         </Alert>
       )}
