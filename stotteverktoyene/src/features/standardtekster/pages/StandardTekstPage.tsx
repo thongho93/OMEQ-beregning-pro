@@ -495,11 +495,15 @@ export default function StandardTekstPage() {
     <Box className={styles.page}>
       <Box className={styles.header}>
         <Box>
-          <Typography variant="h4">Standardtekster</Typography>
+          <Typography variant="h1">Standardtekster</Typography>
         </Box>
 
         <Box className={styles.headerActions}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center" }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: "flex", alignItems: "center" }}
+          >
             <span className={styles.preparatHintKeys}>
               <span className={styles.preparatHintKeyLabel}>Hurtigsøk:</span> ⌥F / Alt+F ·{" "}
               <span className={styles.preparatHintKeyLabel}>Tøm:</span> Escape

@@ -38,9 +38,9 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   const width = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
   const items = [
-    { label: "OMEQ-beregning", path: "/omeq", icon: <CalculateIcon /> },
-    { label: "Standardtekster", path: "/standardtekster", icon: <DescriptionIcon /> },
-    { label: "Produktskjema", path: "/produktskjema", icon: <AssignmentIcon /> },
+    { label: "OMEQ-beregning", path: "/omeq", Icon: CalculateIcon, color: "#1E88E5" },
+    { label: "Standardtekster", path: "/standardtekster", Icon: DescriptionIcon, color: "#43A047" },
+    { label: "Produktskjema", path: "/produktskjema", Icon: AssignmentIcon, color: "#8E24AA" },
   ];
 
   return (
@@ -92,9 +92,10 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
                   minWidth: 0,
                   mr: collapsed ? 0 : 2,
                   justifyContent: "center",
+                  color: item.color,
                 }}
               >
-                {item.icon}
+                <item.Icon sx={{ fontSize: collapsed ? 45 : 35 }} />
               </ListItemIcon>
               {!collapsed && <ListItemText primary={item.label} />}
             </ListItemButton>
