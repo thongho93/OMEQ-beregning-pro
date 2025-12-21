@@ -10,12 +10,45 @@ import {
   Typography,
   Alert,
   CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  TableContainer,
 } from "@mui/material";
-import { setDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore";
+import {
+  setDoc,
+  doc,
+  serverTimestamp,
+  updateDoc,
+  collection,
+  getDocs,
+  orderBy,
+  query,
+  limit,
+  deleteDoc,
+} from "firebase/firestore";
 import { db } from "../../firebase/firebase";
 import { useAuthUser } from "./useAuthUser";
 import styles from "../../styles/standardTekstPage.module.css";
 import { compressAvatarToDataUrl, estimateAvatarBytes } from "../../app/auth/avatarUtils";
+
+type RegisteredUserRow = {
+  uid: string;
+  firstName: string;
+  email: string;
+  role: "Admin" | "Bruker";
+  approved: boolean; // true if approved is true or missing; false if approved === false
+};
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -29,9 +62,20 @@ export function ProfilePage() {
   const [error, setError] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState(false);
 
+  const [registeredUsers, setRegisteredUsers] = React.useState<RegisteredUserRow[]>([]);
+  const [loadingUsers, setLoadingUsers] = React.useState(false);
+  const [usersError, setUsersError] = React.useState<string | null>(null);
+
   const [showStatsLink, setShowStatsLink] = React.useState(false);
   const adminTapCountRef = React.useRef(0);
   const adminTapTimerRef = React.useRef<number | null>(null);
+  const [usersOpen, setUsersOpen] = React.useState(false);
+
+  const [deleteUserTarget, setDeleteUserTarget] = React.useState<RegisteredUserRow | null>(null);
+  const [deletingUser, setDeletingUser] = React.useState(false);
+  const [deleteUserError, setDeleteUserError] = React.useState<string | null>(null);
+  const [approvingUid, setApprovingUid] = React.useState<string | null>(null);
+  const [approveError, setApproveError] = React.useState<string | null>(null);
 
   const handleAdminSecretTap = () => {
     // Triple-click within a short window reveals the stats button
@@ -71,6 +115,79 @@ export function ProfilePage() {
   React.useEffect(() => {
     setDraftAvatarUrl(avatarUrl ?? "");
   }, [avatarUrl]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (!isAdmin) return;
+      setLoadingUsers(true);
+      setUsersError(null);
+
+      try {
+        // Read from /users collection (requires Firestore rules to allow admin read)
+        const usersQ = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(200));
+
+        // admins collection: doc id == uid
+        const [usersSnap, adminsSnap] = await Promise.all([
+          getDocs(usersQ),
+          getDocs(collection(db, "admins")),
+        ]);
+
+        const adminIds = new Set<string>();
+        const adminEmails = new Set<string>();
+
+        adminsSnap.forEach((d) => {
+          adminIds.add(d.id);
+          const data = d.data() as any;
+
+          if (typeof data?.uid === "string" && data.uid) {
+            adminIds.add(data.uid);
+          }
+
+          if (typeof data?.email === "string" && data.email) {
+            adminEmails.add(String(data.email).toLowerCase());
+          }
+        });
+
+        const rows: RegisteredUserRow[] = usersSnap.docs.map((d) => {
+          const data = d.data() as any;
+          const firstName = typeof data.firstName === "string" ? data.firstName : "";
+          const email = typeof data.email === "string" ? data.email : "";
+          const emailLower = email ? email.toLowerCase() : "";
+          const role: RegisteredUserRow["role"] =
+            adminIds.has(d.id) || (emailLower && adminEmails.has(emailLower)) ? "Admin" : "Bruker";
+
+          // Approval: approved === false => waiting; missing/true => active
+          const approvedRaw = data?.approved;
+          const approved = approvedRaw !== false;
+
+          return { uid: d.id, firstName, email, role, approved };
+        });
+
+        // Sort nicely by firstName, then role, then email
+        rows.sort((a, b) => {
+          const n = a.firstName.localeCompare(b.firstName, "nb");
+          if (n !== 0) return n;
+          const r = a.role.localeCompare(b.role, "nb");
+          if (r !== 0) return r;
+          return a.email.localeCompare(b.email, "nb");
+        });
+
+        if (!cancelled) setRegisteredUsers(rows);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Kunne ikke hente brukere.";
+        if (!cancelled) setUsersError(msg);
+      } finally {
+        if (!cancelled) setLoadingUsers(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
 
   if (loading) {
     return (
@@ -167,6 +284,48 @@ export function ProfilePage() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteUserTarget) return;
+
+    setDeletingUser(true);
+    setDeleteUserError(null);
+
+    try {
+      await deleteDoc(doc(db, "users", deleteUserTarget.uid));
+      setRegisteredUsers((prev) => prev.filter((u) => u.uid !== deleteUserTarget.uid));
+      setDeleteUserTarget(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Kunne ikke slette brukeren.";
+      setDeleteUserError(msg);
+    } finally {
+      setDeletingUser(false);
+    }
+  };
+
+  const approveUser = async (target: RegisteredUserRow) => {
+    if (!user) return;
+
+    setApprovingUid(target.uid);
+    setApproveError(null);
+
+    try {
+      await updateDoc(doc(db, "users", target.uid), {
+        approved: true,
+        approvedAt: serverTimestamp(),
+        approvedBy: user.uid,
+      });
+
+      setRegisteredUsers((prev) =>
+        prev.map((u) => (u.uid === target.uid ? { ...u, approved: true } : u))
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Kunne ikke godkjenne brukeren.";
+      setApproveError(msg);
+    } finally {
+      setApprovingUid(null);
     }
   };
 
@@ -306,6 +465,212 @@ export function ProfilePage() {
           </Box>
         </Box>
       </Paper>
+      {isAdmin && (
+        <Paper
+          className={styles.authPaper}
+          sx={{
+            mt: 3,
+            width: "100%",
+            maxWidth: 980,
+          }}
+        >
+          <Typography variant="h3" sx={{ mb: 2 }}>
+            Registrerte brukere
+          </Typography>
+
+          <Accordion
+            expanded={usersOpen}
+            onChange={(_, expanded) => setUsersOpen(expanded)}
+            elevation={0}
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              overflow: "hidden",
+              "&:before": { display: "none" },
+            }}
+          >
+            <AccordionSummary sx={{ px: 2, py: 0.5 }}>
+              <Typography variant="h5">Liste</Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+              {usersError && (
+                <Alert severity="error" sx={{ mb: 1.5 }}>
+                  {usersError}
+                </Alert>
+              )}
+
+              {loadingUsers ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                  <CircularProgress size={22} />
+                </Box>
+              ) : (
+                <>
+                  {approveError && (
+                    <Alert severity="error" sx={{ mb: 1.5 }}>
+                      {approveError}
+                    </Alert>
+                  )}
+
+                  <TableContainer
+                    sx={{
+                      border: "1px solid",
+                      borderColor: "divider",
+                      borderRadius: 2,
+                      overflowX: "auto",
+                    }}
+                  >
+                    <Table
+                      size="small"
+                      aria-label="registrerte brukere"
+                      sx={{
+                        tableLayout: "auto",
+                        width: "max-content",
+                        "& th, & td": { px: 1.25 },
+                      }}
+                    >
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ width: 50, whiteSpace: "nowrap" }}>Fornavn</TableCell>
+                          <TableCell sx={{ width: 260, whiteSpace: "nowrap" }}>E-post</TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 30 }}>Rolle</TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 30 }}>Status</TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 100 }}>
+                            Handling
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {registeredUsers.map((u) => (
+                          <TableRow key={u.uid}>
+                            <TableCell sx={{ width: 50, whiteSpace: "nowrap" }}>
+                              {u.firstName || "-"}
+                            </TableCell>
+                            <TableCell sx={{ width: 260 }}>
+                              <Typography
+                                variant="body2"
+                                noWrap
+                                title={u.email || ""}
+                                sx={{ width: "100%", overflow: "hidden", textOverflow: "ellipsis" }}
+                              >
+                                {u.email || "-"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: "nowrap", minWidth: 30 }}>
+                              {u.role}
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: "nowrap", minWidth: 30 }}>
+                              <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                                <Box
+                                  sx={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: "50%",
+                                    backgroundColor: u.approved ? "success.main" : "warning.main",
+                                  }}
+                                />
+                                <Typography variant="body2">
+                                  {u.approved ? "Aktiv" : "Venter"}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: "nowrap", minWidth: 100 }}>
+                              <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                                {!u.approved && (
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    onClick={() => approveUser(u)}
+                                    disabled={Boolean(approvingUid) || deletingUser}
+                                  >
+                                    {approvingUid === u.uid ? "Godkjenner..." : "Godkjenn"}
+                                  </Button>
+                                )}
+
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  variant="outlined"
+                                  onClick={() => {
+                                    setDeleteUserError(null);
+                                    setDeleteUserTarget(u);
+                                  }}
+                                  disabled={deletingUser || Boolean(approvingUid)}
+                                >
+                                  Slett
+                                </Button>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+
+                        {!usersError && registeredUsers.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5}>
+                              <Typography color="text.secondary">Ingen brukere funnet.</Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
+              )}
+
+              <Typography color="text.secondary" sx={{ mt: 1.5 }}>
+                Kun administratorer kan se denne listen.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+        </Paper>
+      )}
+      <Dialog
+        open={Boolean(deleteUserTarget)}
+        onClose={() => {
+          if (deletingUser) return;
+          setDeleteUserTarget(null);
+          setDeleteUserError(null);
+        }}
+      >
+        <DialogTitle>Slett bruker</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Dette sletter kun brukerdokumentet i databasen (users/{"{uid}"}). Det sletter ikke selve
+            innloggingen.
+          </DialogContentText>
+
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="body2">Bruker: {deleteUserTarget?.firstName || "-"}</Typography>
+            <Typography variant="body2">E-post: {deleteUserTarget?.email || "-"}</Typography>
+          </Box>
+
+          {deleteUserError && (
+            <Alert severity="error" sx={{ mt: 1.5 }}>
+              {deleteUserError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              if (deletingUser) return;
+              setDeleteUserTarget(null);
+              setDeleteUserError(null);
+            }}
+            disabled={deletingUser}
+          >
+            Avbryt
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={confirmDeleteUser}
+            disabled={deletingUser}
+          >
+            {deletingUser ? "Sletter..." : "Slett"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
