@@ -68,7 +68,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["parenteral"],
     omeqFactor: 150,
     isShortActing: true,
-    helpText: "Styrken er allerede omregnet fra µg til mg.",
+    helpText: "Styrken er omregnet fra µg til mg. Er døgndosen 50 µg, skriv 1 dose.",
   },
   {
     id: "fentanyl-sublingval-intranasal",
@@ -77,7 +77,8 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["sublingval", "intranasal"],
     omeqFactor: 250,
     isShortActing: true,
-    helpText: "Styrken er allerede omregnet fra µg til mg.",
+    helpText:
+      "Styrken er omregnet fra µg til mg. Eksempel: er styrken 50 µg, og døgndosen 100 µg, skriv 2 doser.",
   },
   {
     id: "fentanyl-transdermal",
@@ -86,7 +87,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     route: ["transdermal"],
     omeqFactor: 2.4,
     isPatch: true,
-    helpText: "Antall plaster er ikke nødvendig å skrive. Velg riktig styrke.",
+    helpText: "For depotplaster er døgndose ikke nødvendig. Velg riktig styrke.",
   },
   {
     id: "hydromorfon-oral",
@@ -131,8 +132,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     atcCode: ["N02AJ06", "R05DA04"],
     route: ["oral", "rektal"],
     omeqFactor: 0.1,
-    helpText:
-      "Styke til kodein er allerede valgt.",
+    helpText: "Styke til kodein er allerede valgt.",
   },
   {
     id: "metadon-oral",
@@ -156,6 +156,8 @@ export const OPIOIDS: OpioidDefinition[] = [
     atcCode: ["N02AA01"],
     route: ["oral"],
     omeqFactor: 1,
+    helpText:
+      "Oramorph: 1 dråpe = 1,25 mg morfin (1 ml = 16 dråper). Dropizol: 1 dråpe = 0,5 mg morfin (1 ml = 20 dråper).",
   },
   {
     id: "morfin-parenteral",
@@ -178,8 +180,7 @@ export const OPIOIDS: OpioidDefinition[] = [
     atcCode: ["N02AA05", "N02AA55"],
     route: ["oral"],
     omeqFactor: 1.5,
-    helpText:
-      "Styrken for virkestoffet oksykodon er allerede valgt.",
+    helpText: "Styrken for virkestoffet oksykodon er allerede valgt.",
   },
   {
     id: "oksykodon-parenteral",

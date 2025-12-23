@@ -47,7 +47,10 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
 
   const substanceText = matchedOpioid?.substance ?? "";
 
-  const isPatch = parsed.product?.form?.toLowerCase() === "depotplaster";
+  const formLower = parsed.product?.form?.toLowerCase() ?? "";
+  const isPatch = formLower === "depotplaster";
+  const isMixture =
+    formLower.includes("mikstur") || formLower.includes("oral") || formLower.includes("dråpe");
 
   useEffect(() => {
     // When the user selects a valid product (or it becomes uniquely identified),
@@ -131,7 +134,6 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
     };
   }, [parsed.strength, strengthMg, isPatch]);
 
-
   const result = useMemo(() => {
     return calculateOMEQ({
       product: parsed.product ?? null,
@@ -158,6 +160,9 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
       case "unsupported-codeine":
       case "unsupported-methadone":
       case "unsupported-oxycodone":
+      case "unsupported-hydromorphone-parenteral":
+      case "unsupported-ketobemidone":
+      case "unsupported-morphine-drops-or-parenteral":
         return "Ikke støttet i enkel beregning enda.";
       case "no-route":
         return "Fant ikke administrasjonsvei for preparatet.";
@@ -170,7 +175,11 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
     }
   }, [parsed.product, result.reason, isPatch, doseOverLimit]);
 
-  const mgWarningText = `Det ser ut som du har skrevet mg. Skriv antall tablett/kapsel/dose per døgn.`;
+  const mlHintText = `Skriv antall ml per døgn.`;
+
+  const mgWarningText = isMixture
+    ? `Det ser ut som du har skrevet mg. Skriv antall ml per døgn.`
+    : `Det ser ut som du har skrevet mg. Skriv antall tablett/kapsel/dose per døgn.`;
 
   const infoText = useMemo(() => {
     if (!matchedOpioid?.helpText) return "";
@@ -183,7 +192,6 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
 
     return "";
   }, [isPatch, matchedOpioid?.helpText, result.reason]);
-
 
   const doseLooksLikeMg = useMemo(() => {
     // Reuse this name for styling/error state: anything over limit is most likely mg.
@@ -199,22 +207,32 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
     if (!isDoseFocused && !raw) return "";
 
     // While focused but empty: show a short guidance.
-    if (!raw) return "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
+    if (!raw)
+      return isMixture ? `${mlHintText}` : "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
 
     if (doseOverLimit) return mgWarningText;
 
     // When user has typed a value but we can't compute mg yet.
     if (dailyDose == null || strengthMg == null)
-      return "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
+      return isMixture ? `${mlHintText}` : "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
     const impliedTotalMg = dailyDose * strengthMg;
     const roundedTotal = Math.round((impliedTotalMg + Number.EPSILON) * 100) / 100;
     const substance = substanceText || "virkestoff";
 
     if (!Number.isFinite(roundedTotal))
-      return "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
+      return isMixture ? `${mlHintText}` : "Skriv antall tablett/kapsel/dose per døgn (ikke mg).";
 
     return `Tilsvarer ${roundedTotal} mg ${substance} per døgn.`;
-  }, [isPatch, value.doseText, isDoseFocused, dailyDose, strengthMg, substanceText, doseOverLimit]);
+  }, [
+    isPatch,
+    isMixture,
+    value.doseText,
+    isDoseFocused,
+    dailyDose,
+    strengthMg,
+    substanceText,
+    doseOverLimit,
+  ]);
 
   return (
     <Box className={styles.omeqRow}>
@@ -235,21 +253,33 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
 
       <Box className={styles.ratioBox}>
         <TextField
-          value={matchedOpioid ? String(matchedOpioid.omeqFactor) : ""}
-          label="OMEQ-faktor"
+          value={
+            matchedOpioid &&
+            matchedOpioid.id !== "hydromorfon-parenteral" &&
+            result.reason !== "unsupported-ketobemidone" &&
+            result.reason !== "unsupported-morphine-drops-or-parenteral"
+              ? String(matchedOpioid.omeqFactor)
+              : ""
+          }
+          label="Faktor"
           size="small"
+          InputLabelProps={{ shrink: true }}
           InputProps={{ readOnly: true }}
           fullWidth
           sx={{
             "& .MuiOutlinedInput-root": {
               "& fieldset": {
                 borderColor: "primary.main",
+                height: "125%",
               },
               "&:hover fieldset": {
                 borderColor: "primary.main",
               },
               "&.Mui-focused fieldset": {
                 borderColor: "primary.main",
+              },
+              "& .MuiOutlinedInput-input": {
+                textAlign: "center",
               },
             },
           }}
@@ -269,18 +299,37 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
             },
           ],
         }}
+        componentsProps={{
+          tooltip: {
+            sx: {
+              backgroundColor: "rgba(97, 97, 97, 1)", // default MUI grey, 100% opacity
+            },
+          },
+          arrow: {
+            sx: {
+              color: "rgba(97, 97, 97, 1)",
+            },
+          },
+        }}
         disableFocusListener
         disableHoverListener
         disableTouchListener
       >
         <Box sx={{ width: "100%" }}>
           <TextField
-            label={isPatch ? "Ingen døgndose" : "Antall per døgn"}
+            label={
+              isPatch ? "Ingen døgndose" : isMixture ? "Antall ml per døgn" : "Antall per døgn"
+            }
             inputRef={doseInputRef}
-            placeholder={isPatch ? "" : "F.eks. 4"}
             value={isPatch ? "" : value.doseText}
             onChange={(e) => onChange({ ...value, doseText: e.target.value })}
-            inputProps={{ inputMode: "decimal", "aria-label": "Antall per døgn" }}
+            inputProps={{
+              inputMode: "decimal",
+              "aria-label": "Antall per døgn",
+              style: { textAlign: "center" },
+            }}
+            size="small"
+            InputLabelProps={{ shrink: true }}
             fullWidth
             disabled={isPatch}
             error={doseLooksLikeMg && !isPatch}
@@ -291,7 +340,7 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
             InputProps={{
               endAdornment: !isPatch ? (
                 <InputAdornment position="end">
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     {doseLooksLikeMg && (
                       <Tooltip title={mgWarningText} placement="top" arrow>
                         <Box
@@ -307,24 +356,27 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
                       </Tooltip>
                     )}
                     <Box component="span" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
-                      stk/døgn
+                      {isMixture ? "ml/døgn" : "stk/døgn"}
                     </Box>
                   </Box>
                 </InputAdornment>
               ) : undefined,
             }}
-            size="small"
-            InputLabelProps={{ shrink: true }}
             sx={{
               "& .MuiOutlinedInput-root": {
                 "& fieldset": {
                   borderColor: "primary.main",
+                  height: "125%",
                 },
                 "&:hover fieldset": {
                   borderColor: "primary.main",
                 },
-                "&.Mui-focused fieldset": {
+                "&.MTooltipsed fieldset": {
                   borderColor: "primary.main",
+                },
+                "& .MuiOutlinedInput-input": {
+                  paddingRight: "6px",
+                  textAlign: "center",
                 },
               },
             }}
@@ -332,22 +384,27 @@ export const OMEQRow = ({ value, onChange, autoFocusMedicationInput }: Props) =>
         </Box>
       </Tooltip>
 
-
       <TextField
         label="OMEQ"
         value={omeqText}
+        size="small"
+        InputLabelProps={{ shrink: true }}
         InputProps={{ readOnly: true }}
         fullWidth
         sx={{
           "& .MuiOutlinedInput-root": {
             "& fieldset": {
               borderColor: "primary.main",
+              height: "125%",
             },
             "&:hover fieldset": {
               borderColor: "primary.main",
             },
             "&.Mui-focused fieldset": {
               borderColor: "primary.main",
+            },
+            "& .MuiOutlinedInput-input": {
+              textAlign: "center",
             },
           },
         }}

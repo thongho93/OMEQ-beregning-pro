@@ -36,10 +36,12 @@
 /* OMEQ row layout */
 .omeqRow {
   display: grid;
-  grid-template-columns: 2.1fr 0.6fr 0.7fr 0.4fr;
+  grid-template-columns: 2.1fr 0.4fr 0.6fr 0.4fr;
   grid-template-rows: auto auto auto;
   gap: 4px 8px;
   align-items: start;
+  padding: 0 30px;
+  margin-top: 30px;
 }
 
 .omeqRow > :nth-child(1) {

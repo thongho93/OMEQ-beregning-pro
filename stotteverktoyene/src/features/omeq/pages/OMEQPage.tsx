@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Box,
   Button,
@@ -64,14 +64,31 @@ export default function OMEQPage() {
     return () => clearTimeout(t);
   }, [focusRowId]);
 
-  const resetAll = () => {
+  const resetAll = useCallback(() => {
     // Reset to initial state without reloading the whole app
     const firstRow = makeRow();
     setRows([firstRow]);
     setShowHelp(false);
     setShowInfoTable(false);
     setFocusRowId(firstRow.id);
-  };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+
+      // Don't interfere with IME composition etc.
+      if ((e as any).isComposing) return;
+
+      // Prevent unwanted side-effects (e.g. closing popovers) when we intentionally reset.
+      e.preventDefault();
+
+      resetAll();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [resetAll]);
 
   const showDividers = useMemo(() => rows.length > 1, [rows.length]);
 
@@ -174,62 +191,66 @@ export default function OMEQPage() {
 
   return (
     <Container maxWidth={false} className={styles.appContainer}>
-      <Paper elevation={3} className={styles.appCard}>
-        {/* Header row */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mb: 1.5,
-            gap: 2,
-          }}
-        >
-          <Typography variant="h1" sx={{ m: 0 }}>
-            Beregning av OMEQ
+      {/* Header row (outside card) */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 1.5,
+          gap: 2,
+        }}
+      >
+        <Typography variant="h1" sx={{ m: 0 }}>
+          Beregning av OMEQ
+        </Typography>
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+            <strong>Nullstill</strong>: Escape
           </Typography>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-            <Button
-              variant="text"
-              size="small"
-              onClick={() => setShowHelp((v) => !v)}
-              endIcon={showHelp ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              sx={{
-                minWidth: "auto",
-                padding: "2px 6px",
-                fontSize: "0.75rem",
-                borderRadius: 2,
-                textTransform: "none",
-                lineHeight: 1.4,
-                "& .MuiButton-endIcon": { marginLeft: 0.5 },
-                "& .MuiSvgIcon-root": { fontSize: 16 },
-              }}
-            >
-              {showHelp ? "Skjul bruksanvisning" : "Vis bruksanvisning"}
-            </Button>
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => setShowHelp((v) => !v)}
+            endIcon={showHelp ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            sx={{
+              minWidth: "auto",
+              padding: "2px 6px",
+              fontSize: "0.75rem",
+              borderRadius: 2,
+              textTransform: "none",
+              lineHeight: 1.4,
+              "& .MuiButton-endIcon": { marginLeft: 0.5 },
+              "& .MuiSvgIcon-root": { fontSize: 16 },
+            }}
+          >
+            {showHelp ? "Skjul bruksanvisning" : "Vis bruksanvisning"}
+          </Button>
 
-            <Button
-              variant="text"
-              size="small"
-              onClick={() => setShowInfoTable((v) => !v)}
-              endIcon={showInfoTable ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              sx={{
-                minWidth: "auto",
-                padding: "2px 6px",
-                fontSize: "0.75rem",
-                borderRadius: 2,
-                textTransform: "none",
-                lineHeight: 1.4,
-                "& .MuiButton-endIcon": { marginLeft: 0.5 },
-                "& .MuiSvgIcon-root": { fontSize: 16 },
-              }}
-            >
-              {showInfoTable ? "Skjul OMEQ-tabell" : "Vis OMEQ-tabell"}
-            </Button>
-          </Box>
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => setShowInfoTable((v) => !v)}
+            endIcon={showInfoTable ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            sx={{
+              minWidth: "auto",
+              padding: "2px 6px",
+              fontSize: "0.75rem",
+              borderRadius: 2,
+              textTransform: "none",
+              lineHeight: 1.4,
+              "& .MuiButton-endIcon": { marginLeft: 0.5 },
+              "& .MuiSvgIcon-root": { fontSize: 16 },
+            }}
+          >
+            {showInfoTable ? "Skjul OMEQ-tabell" : "Vis OMEQ-tabell"}
+          </Button>
         </Box>
+      </Box>
 
+      <Paper elevation={3} className={styles.appCard}>
         {/* Expandable content – ALWAYS below header */}
         <Box sx={{ mb: 2 }}>
           <Collapse in={showHelp} timeout="auto" unmountOnExit>
