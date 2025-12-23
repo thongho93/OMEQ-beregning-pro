@@ -170,7 +170,7 @@ export const ATC_PRODUCTS: Partial<Record<ATCcode, ATCProduct[]>> = {
       manufacturer: "Hameln",
       form: "injeksjon",
       strengths: ["50 µg/ml"],
-      variants: [{ strength: "50 µg/ml", productNumbers: [70007, 70016, 432520] }],
+      variants: [{ strength: "50 µg/ml", productNumbers: [7007, 7016, 432520] }],
     },
     {
       name: "Fentanyl Kalceks",

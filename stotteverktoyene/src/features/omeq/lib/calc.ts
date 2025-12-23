@@ -3,6 +3,32 @@
 import { formToRoute } from "../data/atcProducts";
 import { OPIOIDS } from "../data/opioids";
 
+const inferRoute = (formRaw: unknown, mappedRoute: string | null | undefined) => {
+  const form = String(formRaw ?? "")
+    .trim()
+    .toLowerCase();
+
+  // Viktig: mikstur / orale løsninger kan ha styrker som "mg/ml", men administrasjonsvei er fortsatt oral.
+  if (
+    form.includes("mikstur") ||
+    form.includes("dråpe") ||
+    form.includes("dråper") ||
+    form.includes("oral") ||
+    form.includes("oppløsning") ||
+    form.includes("løsning") ||
+    form.includes("suspensjon")
+  ) {
+    return "oral";
+  }
+
+  // Injeksjon/infusjon skal være parenteral
+  if (form.includes("injeks") || form.includes("infus")) {
+    return "parenteral";
+  }
+
+  return mappedRoute ?? null;
+};
+
 interface CalcInput {
   product: any | null;
   dailyDose: number | null; // antall enheter per døgn
@@ -25,7 +51,13 @@ const strengthToMg = (
 
   // Støtter kun enkle former foreløpig (inkl. varianter som "µg/dose")
   const isMg = unit === "mg" || unit.includes("mg");
-  const isG = unit === "g" || (unit.includes("g") && !unit.includes("mg") && !unit.includes("µg") && !unit.includes("ug") && !unit.includes("mcg"));
+  const isG =
+    unit === "g" ||
+    (unit.includes("g") &&
+      !unit.includes("mg") &&
+      !unit.includes("µg") &&
+      !unit.includes("ug") &&
+      !unit.includes("mcg"));
   const isMcg = unit.includes("µg") || unit.includes("ug") || unit.includes("mcg");
 
   // Unngå å feiltolke plasterstyrke (µg/time) som mg-dosering
@@ -35,7 +67,27 @@ const strengthToMg = (
   if (isG) return value * 1000;
   if (isMcg && !isPerHour) return value / 1000;
 
-  // mg/ml og andre kombinasjoner håndteres senere
+  // Konsentrasjoner (typisk mikstur/oral løsning): vi antar at dailyDose er angitt i ml per døgn
+  // slik at "1 mg/ml" betyr 1 mg per ml.
+  const isMgPerMl =
+    unit.includes("mg/ml") ||
+    unit.includes("mg/ml.") ||
+    unit.includes("mg per ml") ||
+    unit.includes("mg/ml ") ||
+    unit.includes("mg/ml,");
+  const isGPerMl = unit.includes("g/ml") || unit.includes("g per ml");
+  const isMcgPerMl =
+    unit.includes("µg/ml") ||
+    unit.includes("ug/ml") ||
+    unit.includes("mcg/ml") ||
+    unit.includes("µg per ml") ||
+    unit.includes("ug per ml") ||
+    unit.includes("mcg per ml");
+
+  if (isMgPerMl) return value; // mg per ml
+  if (isGPerMl) return value * 1000; // g per ml -> mg per ml
+  if (isMcgPerMl) return value / 1000; // µg per ml -> mg per ml
+
   return null;
 };
 
@@ -68,14 +120,37 @@ export function calculateOMEQ({ product, dailyDose, strength }: CalcInput) {
     return { omeq: null, reason: "missing-input" };
   }
 
-  const route = formToRoute(product.form);
+  const route = inferRoute(
+    product.form,
+    formToRoute(product.form) as unknown as string | undefined
+  );
   if (!route) {
     return { omeq: null, reason: "no-route" };
   }
 
-  const atc = String(product.atcCode);
+  // Hydromorfon parenteral (N02AA03) har annen beregningslogikk – støttes ikke i enkel beregning ennå.
+  if (String(product.atcCode) === "N02AA03" && route === "parenteral") {
+    return { omeq: null, reason: "unsupported-hydromorphone-parenteral" } as const;
+  }
+
+  // Ketobemidon (N02AB01 og N02AG02) støttes ikke i enkel beregning ennå.
+  if (String(product.atcCode) === "N02AB01" || String(product.atcCode) === "N02AG02") {
+    return { omeq: null, reason: "unsupported-ketobemidone" } as const;
+  }
+
+  // Morfin (N02AA01) dråper og parenteral har egen logikk – støttes ikke i enkel beregning ennå.
+  const formLower = String(product.form ?? "").trim().toLowerCase();
+  if (
+    String(product.atcCode) === "N02AA01" &&
+    (route === "parenteral" || formLower.includes("dråpe"))
+  ) {
+    return { omeq: null, reason: "unsupported-morphine-drops-or-parenteral" } as const;
+  }
+
   const form = String(product.form).toLowerCase();
-  const routeLower = route.toLowerCase();
+
+  // Metadon (oral, inkl. mikstur og tabletter):
+  // OMEQ = døgndose * styrke (mg) * omeqFactor (6)
 
   // Ikke støttet ennå (depotplaster håndteres separat lenger ned)
   // Sublingvaltablett (f.eks. Abstral/Temgesic) beregnes som vanlig.
@@ -83,12 +158,9 @@ export function calculateOMEQ({ product, dailyDose, strength }: CalcInput) {
     return { omeq: null, reason: "unsupported-form" } as const;
   }
 
-  if (atc === "N07BC02" && routeLower.includes("oral")) {
-    return { omeq: null, reason: "unsupported-methadone" };
-  }
-
   const opioid = OPIOIDS.find(
-    (o) => o.atcCode.includes(product.atcCode as any) && o.route.includes(route)
+    (o) =>
+      o.atcCode.includes(product.atcCode as any) && (o.route as unknown as string[]).includes(route)
   );
 
   if (!opioid) {

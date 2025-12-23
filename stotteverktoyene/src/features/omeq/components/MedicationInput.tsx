@@ -28,20 +28,17 @@ export const MedicationInput = ({ value, onChange, autoFocus }: MedicationInputP
 
   const inputElRef = useRef<HTMLInputElement | null>(null);
 
-  const wireInputRef = useCallback(
-    (node: HTMLInputElement | null, muiInputRef?: any) => {
-      inputElRef.current = node;
+  const wireInputRef = useCallback((node: HTMLInputElement | null, muiInputRef?: any) => {
+    inputElRef.current = node;
 
-      // Preserve MUI/Autocomplete internal ref wiring
-      if (!muiInputRef) return;
-      if (typeof muiInputRef === "function") {
-        muiInputRef(node);
-      } else if (typeof muiInputRef === "object") {
-        muiInputRef.current = node;
-      }
-    },
-    []
-  );
+    // Preserve MUI/Autocomplete internal ref wiring
+    if (!muiInputRef) return;
+    if (typeof muiInputRef === "function") {
+      muiInputRef(node);
+    } else if (typeof muiInputRef === "object") {
+      muiInputRef.current = node;
+    }
+  }, []);
 
   useEffect(() => {
     if (!autoFocus) return;
