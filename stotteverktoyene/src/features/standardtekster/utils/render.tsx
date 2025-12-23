@@ -3,7 +3,7 @@ import { Box } from "@mui/material";
 export function renderContentWithPreparatHighlight(
   text: string,
   pickedPreparats: Array<string | null | undefined>,
-  opts?: { enableSecondaryHighlight?: boolean }
+  opts?: { enableSecondaryHighlight?: boolean; tallValues?: string[] }
 ) {
   const tokenSx = {
     display: "inline-flex",
@@ -30,6 +30,13 @@ export function renderContentWithPreparatHighlight(
     fontFamily: "monospace",
   } as const;
 
+  const placeholderTallSx = {
+    ...tokenSx,
+    bgcolor: "info.light",
+    color: "info.contrastText",
+    fontFamily: "monospace",
+  } as const;
+
   const pickedPrimarySx = {
     ...tokenSx,
     bgcolor: "warning.light",
@@ -43,6 +50,67 @@ export function renderContentWithPreparatHighlight(
     color: "success.contrastText",
     fontWeight: 600,
   } as const;
+
+  const renderTallInText = (t: string) => {
+    if (!t) return t;
+
+    // First, render any remaining TALL placeholders with chip styling
+    const tokenParts = t.split(/(\{\{\s*TALL\d*\s*\}\})/gi);
+    const hasTallToken = tokenParts.length > 1;
+
+    const tallNeedles = (opts?.tallValues ?? [])
+      .map((v) => (v ?? "").trim())
+      .filter(Boolean);
+
+    const wrapNeedles = (s: string) => {
+      if (!s) return s;
+      if (tallNeedles.length === 0) return s;
+
+      // Prefer longest first to avoid partial matches (e.g. "10" inside "100")
+      const uniqTall = Array.from(new Set(tallNeedles)).sort((a, b) => b.length - a.length);
+      const escapeRegExp = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(`(${uniqTall.map(escapeRegExp).join("|")})`, "g");
+      const parts = s.split(pattern);
+      if (parts.length <= 1) return s;
+
+      return (
+        <>
+          {parts.map((part, i) => {
+            const matched = uniqTall.find((u) => u === part);
+            if (matched) {
+              return (
+                <Box key={i} component="span" sx={placeholderTallSx}>
+                  {part}
+                </Box>
+              );
+            }
+            return <span key={i}>{part}</span>;
+          })}
+        </>
+      );
+    };
+
+    if (hasTallToken) {
+      return (
+        <>
+          {tokenParts.map((part, i) => {
+            if (/^\{\{\s*TALL\d*\s*\}\}$/i.test(part)) {
+              return (
+                <Box key={i} component="span" sx={placeholderTallSx}>
+                  {part}
+                </Box>
+              );
+            }
+
+            const wrapped = wrapNeedles(part);
+            return typeof wrapped === "string" ? <span key={i}>{wrapped}</span> : <span key={i}>{wrapped}</span>;
+          })}
+        </>
+      );
+    }
+
+    return wrapNeedles(t);
+  };
 
     const placeholder0 = "{{PREPARAT}}";
     const placeholder1 = "{{PREPARAT1}}";
@@ -134,52 +202,53 @@ export function renderContentWithPreparatHighlight(
               );
             }
 
-            return <span key={i}>{part}</span>;
+            return <span key={i}>{renderTallInText(part)}</span>;
           })}
         </>
       );
     }
 
-    const pickedList = (pickedPreparats ?? []).map((p) => (p ?? "").trim()).filter(Boolean);
-    const needles = pickedList;
-    if (needles.length > 0) {
-      const enableSecondary = Boolean(opts?.enableSecondaryHighlight);
-      // Use the second non-empty picked value as “secondary”. If there is only one picked value,
-      // do NOT treat it as secondary (otherwise it becomes green and primary/orange never shows).
-      const secondary = enableSecondary && pickedList.length > 1 ? pickedList[1] : "";
 
-      // Prefer longest first to avoid partial matches (e.g. "Ventoline" inside "Ventoline 0,1 mg/dose").
-      const uniq = Array.from(new Set(needles)).sort((a, b) => b.length - a.length);
+  const pickedList = (pickedPreparats ?? []).map((p) => (p ?? "").trim()).filter(Boolean);
+  const needles = pickedList;
+  if (needles.length > 0) {
+    const enableSecondary = Boolean(opts?.enableSecondaryHighlight);
+    // Use the second non-empty picked value as “secondary”. If there is only one picked value,
+    // do NOT treat it as secondary (otherwise it becomes green and primary/orange never shows).
+    const secondary = enableSecondary && pickedList.length > 1 ? pickedList[1] : "";
 
-      const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(`(${uniq.map(escapeRegExp).join("|")})`, "gi");
+    // Prefer longest first to avoid partial matches (e.g. "Ventoline" inside "Ventoline 0,1 mg/dose").
+    const uniq = Array.from(new Set(needles)).sort((a, b) => b.length - a.length);
 
-      const parts = text.split(pattern);
+    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(${uniq.map(escapeRegExp).join("|")})`, "gi");
 
-      // If we didn't actually split, return original text
-      if (parts.length > 1) {
-        return (
-          <>
-            {parts.map((part, i) => {
-              const matched = uniq.find((u) => u.toLowerCase() === part.toLowerCase());
-              if (matched) {
-                const sx =
-                  secondary && matched.toLowerCase() === secondary.toLowerCase()
-                    ? pickedSecondarySx
-                    : pickedPrimarySx;
+    const parts = text.split(pattern);
 
-                return (
-                  <Box key={i} component="span" sx={sx}>
-                    {part}
-                  </Box>
-                );
-              }
-              return <span key={i}>{part}</span>;
-            })}
-          </>
-        );
-      }
+    // If we didn't actually split, return original text
+    if (parts.length > 1) {
+      return (
+        <>
+          {parts.map((part, i) => {
+            const matched = uniq.find((u) => u.toLowerCase() === part.toLowerCase());
+            if (matched) {
+              const sx =
+                secondary && matched.toLowerCase() === secondary.toLowerCase()
+                  ? pickedSecondarySx
+                  : pickedPrimarySx;
+
+              return (
+                <Box key={i} component="span" sx={sx}>
+                  {part}
+                </Box>
+              );
+            }
+            return <span key={i}>{part}</span>;
+          })}
+        </>
+      );
     }
-
-    return text;
   }
+
+  return renderTallInText(text);
+}

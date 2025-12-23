@@ -25,9 +25,11 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import {
+  getTallTokenIndices,
   replaceNextPreparatToken,
-  replaceTallTokens,
+  replaceTallTokenByIndex,
   templateHasTallToken,
   usePreparatRows,
 } from "../utils/preparat";
@@ -85,16 +87,18 @@ export default function StandardTekstPage() {
     usePreparatRows();
   const preparatSectionRef = useRef<HTMLDivElement | null>(null);
   const preparatSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const standardTekstSearchInputRef = useRef<HTMLInputElement | null>(null);
   const preserveInputsOnNextSelectRef = useRef(false);
 
-  // Hotkeys for preparat search focus and clearing
+  // Hotkeys for preparat search focus/clearing and standardtekster search focus
   useStandardTekstHotkeys({
     preparatRows,
     clearPreparats,
     preparatSearchInputRef,
+    standardTekstSearchInputRef,
   });
 
-  const [tallValue, setTallValue] = useState<string>("");
+  const [tallByIndex, setTallByIndex] = useState<Record<number, string>>({ 0: "" });
   const [copied, setCopied] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [draftFollowUps, setDraftFollowUps] = useState<StandardTekstFollowUp[]>([]);
@@ -116,15 +120,19 @@ export default function StandardTekstPage() {
       picked: pickedPreparats,
     });
 
-    // Apply {{TALL}} replacement last, so it affects both preview + copy.
-    if (templateHasTallToken(selected.content)) {
-      // Only replace when user has provided a value. If empty, keep token so we can block copy.
-      if (!tallValue.trim()) return base;
-      return replaceTallTokens(base, tallValue);
+    if (!templateHasTallToken(selected.content)) return base;
+
+    // Replace each TALL token individually (TALL, TALL1, TALL2...)
+    let out = base;
+    for (const idx of getTallTokenIndices(selected.content)) {
+      const v = (tallByIndex[idx] ?? "").trim();
+      // If user hasn't filled it, keep token in place (copy will be blocked)
+      if (!v) continue;
+      out = replaceTallTokenByIndex(out, idx, v);
     }
 
-    return base;
-  }, [selected, firstName, pickedPreparats, tallValue]);
+    return out;
+  }, [selected, firstName, pickedPreparats, tallByIndex]);
 
   // Preview content with preparats and tall
   const previewContent = useMemo(() => {
@@ -136,13 +144,16 @@ export default function StandardTekstPage() {
       picked: pickedPreparats,
     });
 
-    if (templateHasTallToken(selected.content)) {
-      const valueToShow = tallValue.trim() ? tallValue : "____";
-      return replaceTallTokens(base, valueToShow);
+    if (!templateHasTallToken(selected.content)) return base;
+
+    let out = base;
+    for (const idx of getTallTokenIndices(selected.content)) {
+      const v = (tallByIndex[idx] ?? "").trim();
+      out = replaceTallTokenByIndex(out, idx, v ? v : "____");
     }
 
-    return base;
-  }, [selected, firstName, pickedPreparats, tallValue]);
+    return out;
+  }, [selected, firstName, pickedPreparats, tallByIndex]);
 
   // Når valgt tekst endres, sync draft og avslutt redigering
   useEffect(() => {
@@ -155,7 +166,14 @@ export default function StandardTekstPage() {
     setFollowUpLabel("");
     if (!preserveInputsOnNextSelectRef.current) {
       resetPreparatRows();
-      setTallValue("");
+      const indices = getTallTokenIndices(selected?.content ?? "");
+      if (indices.length) {
+        const next: Record<number, string> = {};
+        for (const i of indices) next[i] = "";
+        setTallByIndex(next);
+      } else {
+        setTallByIndex({ 0: "" });
+      }
 
       // Auto-focus preparat search when a template is selected, so user can start typing right away.
       // Use rAF to wait for the input to be mounted/updated.
@@ -427,9 +445,16 @@ export default function StandardTekstPage() {
     if (isEditing) return;
 
     // Prevent copying if the template requires a number and it hasn't been filled in.
-    if (templateHasTallToken(selected.content) && !tallValue.trim()) {
-      setErrorLocal("Fyll inn tallfeltet ({{TALL}}) før du kopierer teksten.");
-      return;
+    if (templateHasTallToken(selected.content)) {
+      const indices = getTallTokenIndices(selected.content);
+      const missing = indices.filter((i) => !(tallByIndex[i] ?? "").trim());
+      if (missing.length) {
+        const label = missing
+          .map((i) => (i === 0 ? "{{TALL}}" : `{{TALL${i}}}`))
+          .join(", ");
+        setErrorLocal(`Fyll inn tallfeltet før du kopierer teksten: ${label}.`);
+        return;
+      }
     }
 
     const text = (displayContent ?? "").trim();
@@ -438,6 +463,15 @@ export default function StandardTekstPage() {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      clearPreparats();
+      setTallByIndex({ 0: "" });
+
+      // Focus back to preparat search for fast next use
+      requestAnimationFrame(() => {
+        preparatSearchInputRef.current?.focus();
+        preparatSearchInputRef.current?.select?.();
+      });
+
       return;
     } catch {
       // Fallback for eldre nettlesere / usikre kontekster
@@ -452,6 +486,12 @@ export default function StandardTekstPage() {
         document.execCommand("copy");
         document.body.removeChild(el);
         setCopied(true);
+        clearPreparats();
+        setTallByIndex({ 0: "" });
+        requestAnimationFrame(() => {
+          preparatSearchInputRef.current?.focus();
+          preparatSearchInputRef.current?.select?.();
+        });
       } catch {
         // ignore
       }
@@ -508,7 +548,8 @@ export default function StandardTekstPage() {
             sx={{ display: "flex", alignItems: "center" }}
           >
             <span className={styles.preparatHintKeys}>
-              <span className={styles.preparatHintKeyLabel}>Hurtigsøk:</span> ⌥F / Alt+F ·{" "}
+              <span className={styles.preparatHintKeyLabel}>Søk tekst:</span> Ctrl+S ·{" "}
+              <span className={styles.preparatHintKeyLabel}>Søk preparat:</span> Ctrl+Shift+F ·{" "}
               <span className={styles.preparatHintKeyLabel}>Tøm:</span> Escape
             </span>
           </Typography>
@@ -560,6 +601,7 @@ export default function StandardTekstPage() {
           filtered={filtered}
           selectedId={selectedId}
           setSelectedId={(id) => setSelectedId(id)}
+          searchInputRef={standardTekstSearchInputRef}
         />
 
         <Box className={styles.main}>
@@ -608,20 +650,33 @@ export default function StandardTekstPage() {
                 <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
                   Tall i teksten
                 </Typography>
-                <TextField
-                  label="Tall"
-                  value={tallValue}
-                  onChange={(e) => setTallValue(e.target.value)}
-                  size="small"
-                  type="number"
-                  inputProps={{ inputMode: "numeric" }}
-                  helperText={
-                    tallValue.trim()
-                      ? "Tallet settes inn der {{TALL}} står i teksten."
-                      : "Plasseringen vises som ____ i teksten til du fyller inn et tall."
-                  }
-                  fullWidth
-                />
+
+                <Box sx={{ display: "grid", gap: 1 }}>
+                  {getTallTokenIndices(selected.content).map((idx) => {
+                    const v = tallByIndex[idx] ?? "";
+                    const tokenLabel = idx === 0 ? "Tall" : `Tall ${idx}`;
+
+                    return (
+                      <TextField
+                        key={idx}
+                        label={tokenLabel}
+                        value={v}
+                        onChange={(e) =>
+                          setTallByIndex((prev) => ({ ...prev, [idx]: e.target.value }))
+                        }
+                        size="small"
+                        type="number"
+                        inputProps={{ inputMode: "numeric" }}
+                        helperText={
+                          v.trim()
+                            ? `Tallet settes inn der ${tokenLabel} står i teksten.`
+                            : "Plasseringen vises som ____ i teksten til du fyller inn et tall."
+                        }
+                        fullWidth
+                      />
+                    );
+                  })}
+                </Box>
               </Paper>
             )}
           </Box>
@@ -653,7 +708,13 @@ export default function StandardTekstPage() {
             previewNode={renderContentWithPreparatHighlight(
               previewContent || "(Tom tekst)",
               preparatRows.map((r) => r.picked),
-              { enableSecondaryHighlight: templateUsesPreparat1(selected?.content ?? "") }
+              {
+                enableSecondaryHighlight: templateUsesPreparat1(selected?.content ?? ""),
+                tallValues: getTallTokenIndices(selected?.content ?? "").map((i) => {
+                  const v = (tallByIndex[i] ?? "").trim();
+                  return v ? v : "____";
+                }),
+              }
             )}
             editorTools={
               isAdmin ? (
@@ -697,8 +758,24 @@ export default function StandardTekstPage() {
         open={copied}
         autoHideDuration={1500}
         onClose={() => setCopied(false)}
-        message="Teksten er kopiert"
-      />
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setCopied(false)}
+          severity="success"
+          variant="filled"
+          icon={<CheckCircleIcon fontSize="inherit" />}
+          sx={{
+            borderRadius: 999,
+            px: 2,
+            py: 0.75,
+            alignItems: "center",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+          }}
+        >
+          Standardtekst kopiert
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

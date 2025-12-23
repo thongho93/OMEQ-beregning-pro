@@ -318,6 +318,38 @@ export function templateHasTallToken(text: string): boolean {
   return /\{\{\s*TALL\d*\s*\}\}/i.test(text);
 }
 
+export function getTallTokenIndices(text: string): number[] {
+  const indices = new Set<number>();
+
+  const re = /\{\{\s*TALL(\d*)\s*\}\}/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const raw = (m[1] ?? "").trim();
+    if (!raw) {
+      indices.add(0);
+    } else {
+      const n = Number(raw);
+      if (Number.isFinite(n)) indices.add(n);
+    }
+  }
+
+  return Array.from(indices).sort((a, b) => a - b);
+}
+
+export function replaceTallTokenByIndex(text: string, index: number, value: string): string {
+  if (!text) return text;
+  const safeValue = value ?? "";
+
+  if (index === 0) {
+    // Only replace the unindexed token {{TALL}}
+    return text.replace(/\{\{\s*TALL\s*\}\}/gi, safeValue);
+  }
+
+  // Only replace the specific indexed token (e.g. {{TALL1}})
+  const re = new RegExp(`\\{\\{\\s*TALL${index}\\s*\\}\\}`, "gi");
+  return text.replace(re, safeValue);
+}
+
 export function usePreparatRows() {
   const [preparatRows, setPreparatRows] = useState<PreparatRow[]>([{ id: 0, picked: null }]);
 

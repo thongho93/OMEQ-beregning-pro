@@ -16,6 +16,8 @@ import {
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
+import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import IconButton from "@mui/material/IconButton";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import type { StandardTekst } from "../types";
@@ -24,6 +26,9 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../../../firebase/firebase";
 import { useAuthUser } from "../../../app/auth/Auth";
 import { logUsage } from "../../../shared/services/usage";
+
+const storageKey = (base: string, uid?: string | null) =>
+  uid ? `standardtekster:${uid}:${base}` : `standardtekster:${base}`;
 
 type Props = {
   disabled?: boolean;
@@ -39,6 +44,7 @@ type Props = {
 
   selectedId: string | null;
   setSelectedId: (id: string) => void;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
 };
 
 const CATEGORY_COLOR_PALETTE = [
@@ -141,6 +147,7 @@ export default function StandardTekstSidebar({
   filtered,
   selectedId,
   setSelectedId,
+  searchInputRef,
 }: Props) {
   const { user } = useAuthUser();
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -157,7 +164,8 @@ export default function StandardTekstSidebar({
   // Hydrate expand/collapse state from localStorage on mount
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("standardtekster:categoryExpanded");
+      const key = storageKey("categoryExpanded", user?.uid);
+      const raw = localStorage.getItem(key);
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
@@ -168,12 +176,13 @@ export default function StandardTekstSidebar({
     } finally {
       setExpandedHydrated(true);
     }
-  }, []);
+  }, [user?.uid]);
 
   // Hydrate hide/show state from localStorage on mount
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("standardtekster:categoryHidden");
+      const key = storageKey("categoryHidden", user?.uid);
+      const raw = localStorage.getItem(key);
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
@@ -184,7 +193,7 @@ export default function StandardTekstSidebar({
     } finally {
       setHiddenHydrated(true);
     }
-  }, []);
+  }, [user?.uid]);
 
   const favoritesDocRef = useMemo(() => {
     if (!user?.uid) return null;
@@ -299,6 +308,28 @@ export default function StandardTekstSidebar({
     });
   };
 
+  const expandAllCategories = () => {
+    setExpandedCategories((prev) => {
+      const next = { ...prev };
+      for (const g of groupedByCategory) {
+        if (hiddenCategories[g.category]) continue;
+        next[g.category] = true;
+      }
+      return next;
+    });
+  };
+
+  const collapseAllCategories = () => {
+    setExpandedCategories((prev) => {
+      const next = { ...prev };
+      for (const g of groupedByCategory) {
+        if (hiddenCategories[g.category]) continue;
+        next[g.category] = false;
+      }
+      return next;
+    });
+  };
+
   const hideCategory = (category: string) => {
     setHiddenCategories((prev) => ({
       ...prev,
@@ -318,25 +349,29 @@ export default function StandardTekstSidebar({
   useEffect(() => {
     if (!expandedHydrated) return;
     try {
-      localStorage.setItem("standardtekster:categoryExpanded", JSON.stringify(expandedCategories));
+      const key = storageKey("categoryExpanded", user?.uid);
+      localStorage.setItem(key, JSON.stringify(expandedCategories));
     } catch {
       // ignore
     }
-  }, [expandedCategories, expandedHydrated]);
+  }, [expandedCategories, expandedHydrated, user?.uid]);
 
   // Persist hide/show state
   useEffect(() => {
     if (!hiddenHydrated) return;
     try {
-      localStorage.setItem("standardtekster:categoryHidden", JSON.stringify(hiddenCategories));
+      const key = storageKey("categoryHidden", user?.uid);
+      localStorage.setItem(key, JSON.stringify(hiddenCategories));
     } catch {
       // ignore
     }
-  }, [hiddenCategories, hiddenHydrated]);
+  }, [hiddenCategories, hiddenHydrated, user?.uid]);
 
   const prevSelectedIdRef = useRef<string | null>(null);
   // Clear search on next focus if the user previously left the field with a value
   const clearSearchOnNextFocusRef = useRef(false);
+
+  const isSearching = search.trim().length > 0;
 
   // Ensure the category containing the selected item is expanded
   // Only do this when selection changes due to user interaction, not on initial load.
@@ -406,6 +441,7 @@ export default function StandardTekstSidebar({
             size="small"
             label="Søk i standardtekster"
             value={search}
+            inputRef={searchInputRef}
             onChange={(e) => {
               const value = e.target.value;
               setSearch(value);
@@ -427,6 +463,54 @@ export default function StandardTekstSidebar({
             }}
             disabled={disabled}
           />
+        </Box>
+
+        <Box
+          sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 0.5 }}
+        >
+          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
+            Kategorier
+          </Typography>
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Tooltip title="Kollaps alle" placement="top" arrow>
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={collapseAllCategories}
+                  disabled={disabled || groupedByCategory.length === 0}
+                  sx={{
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    width: 30,
+                    height: 30,
+                  }}
+                >
+                  <UnfoldLessIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+
+            <Tooltip title="Ekspander alle" placement="top" arrow>
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={expandAllCategories}
+                  disabled={disabled || groupedByCategory.length === 0}
+                  sx={{
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    width: 30,
+                    height: 30,
+                  }}
+                >
+                  <UnfoldMoreIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
         </Box>
 
         {search.trim() && (
@@ -453,9 +537,10 @@ export default function StandardTekstSidebar({
           <>
             <List dense disablePadding className={styles.sidebarList}>
               {groupedByCategory.map((group) => {
-                if (hiddenCategories[group.category]) return null;
+                const isHidden = !!hiddenCategories[group.category];
+                if (isHidden && !isSearching) return null;
 
-                const isExpanded = expandedCategories[group.category] !== false;
+                const isExpanded = isSearching ? true : expandedCategories[group.category] !== false;
 
                 return (
                   <Box key={group.category}>
@@ -468,6 +553,11 @@ export default function StandardTekstSidebar({
                         top: 0,
                         zIndex: 1,
                         backgroundColor: "background.paper",
+                        ...(isHidden
+                          ? {
+                              opacity: 0.9,
+                            }
+                          : {}),
                         "&:hover .hide-category-btn": { opacity: 1 },
                         "&.Mui-selected .hide-category-btn": { opacity: 1 },
                       }}
@@ -492,25 +582,35 @@ export default function StandardTekstSidebar({
                         }}
                       />
 
-                      {group.category !== "Favoritter" && (
-                        <Tooltip title="Skjul kategori" placement="top" arrow>
-                          <IconButton
-                            className="hide-category-btn"
-                            size="small"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              hideCategory(group.category);
-                            }}
-                            sx={{
-                              mr: 0.5,
-                              opacity: 0,
-                              transition: "opacity 120ms ease",
-                            }}
-                          >
-                            <VisibilityOffIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                      {isHidden ? (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ mr: 0.75, whiteSpace: "nowrap" }}
+                        >
+                          Skjult
+                        </Typography>
+                      ) : (
+                        group.category !== "Favoritter" && (
+                          <Tooltip title="Skjul kategori" placement="top" arrow>
+                            <IconButton
+                              className="hide-category-btn"
+                              size="small"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                hideCategory(group.category);
+                              }}
+                              sx={{
+                                mr: 0.5,
+                                opacity: 0,
+                                transition: "opacity 120ms ease",
+                              }}
+                            >
+                              <VisibilityOffIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )
                       )}
 
                       <ExpandMoreIcon
@@ -573,7 +673,11 @@ export default function StandardTekstSidebar({
               return (
                 <Box sx={{ px: 1.25, py: 1 }}>
                   <Divider sx={{ mb: 1, opacity: 0.35 }} />
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mb: 0.5 }}
+                  >
                     Skjulte kategorier
                   </Typography>
                   <List dense disablePadding>
