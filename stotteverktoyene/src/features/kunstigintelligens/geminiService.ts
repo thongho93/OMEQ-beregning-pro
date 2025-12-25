@@ -60,13 +60,6 @@ export async function askGeminiWithSearch(params: {
 
     const text = result.response.text()?.trim() || "Beklager, jeg fikk ikke noe svar.";
 
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.log("GROUNDED TEXT:", text);
-      // eslint-disable-next-line no-console
-      console.log("GROUNDED RESPONSE:", result.response);
-    }
-
     const grounding = extractGroundingSources(result.response);
 
     return {
@@ -84,11 +77,7 @@ export async function askGeminiWithSearch(params: {
   }
 }
 
-function buildTemplateInputs(
-  messages: ChatMessage[],
-  userText: string,
-  retrievedContext?: string
-) {
+function buildTemplateInputs(messages: ChatMessage[], userText: string, retrievedContext?: string) {
   const now = new Date();
   const today = now.toLocaleDateString("nb-NO", {
     weekday: "long",
@@ -136,10 +125,7 @@ function parseRetrySeconds(msg: string): number | null {
 
 function toErrorMessage(e: unknown) {
   const raw =
-    e &&
-    typeof e === "object" &&
-    "message" in e &&
-    typeof (e as any).message === "string"
+    e && typeof e === "object" && "message" in e && typeof (e as any).message === "string"
       ? ((e as any).message as string)
       : "Noe gikk galt ved kontakt med Gemini.";
 
@@ -272,15 +258,6 @@ export async function askGeminiWithSearchAndTemplate(params: {
       queries,
       sources,
     });
-
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.log("GROUNDING QUERIES:", queries);
-      // eslint-disable-next-line no-console
-      console.log("GROUNDING SOURCES:", sources);
-      // eslint-disable-next-line no-console
-      console.log("RETRIEVED CONTEXT:\n", retrievedContext);
-    }
 
     // 3) Call clinical template with retrievedContext included as input
     const inputs = buildTemplateInputs(params.messages, params.userText, retrievedContext);

@@ -10,6 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import SendIcon from "@mui/icons-material/Send";
@@ -25,6 +26,22 @@ export default function Chatbot() {
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUsageTip, setShowUsageTip] = useState(() => {
+    try {
+      return localStorage.getItem("reks.chat.hideUsageTip") !== "true";
+    } catch {
+      return true;
+    }
+  });
+
+  const dismissUsageTip = () => {
+    setShowUsageTip(false);
+    try {
+      localStorage.setItem("reks.chat.hideUsageTip", "true");
+    } catch {
+      // ignore
+    }
+  };
   const [panelHeight, setPanelHeight] = useState(() => {
     try {
       const raw = localStorage.getItem("reks.chat.panelHeight");
@@ -555,11 +572,6 @@ export default function Chatbot() {
 
     const useGrounding = import.meta.env.DEV && import.meta.env.VITE_ENABLE_GROUNDING === "true";
 
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.log("Chatbot: useGrounding =", useGrounding);
-    }
-
     const res = useGrounding
       ? await askGeminiWithSearchAndTemplate({ messages: nextMessages, userText: text })
       : await askGemini({ messages: nextMessages, userText: text });
@@ -698,6 +710,37 @@ export default function Chatbot() {
 
             {/* Body */}
             <Stack spacing={2} sx={{ height: panelHeight, p: 1.5 }}>
+              {showUsageTip && (
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 1,
+                    borderRadius: 2,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 1,
+                    bgcolor: "background.paper",
+                  }}
+                >
+                  <InfoOutlinedIcon fontSize="small" />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" sx={{ lineHeight: 1.4 }}>
+                      Tips: For å sikre stabil drift, begrens bruk av AI til maks 100 søk per dag.
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      Hvis du får “rate limit”, vent litt eller prøv igjen senere.
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    aria-label="Skjul tips"
+                    onClick={dismissUsageTip}
+                    sx={{ mt: -0.5 }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Paper>
+              )}
               <Box sx={{ flex: 1, overflowY: "auto" }}>
                 <Stack spacing={1}>
                   {messages.map((m, i) => {
