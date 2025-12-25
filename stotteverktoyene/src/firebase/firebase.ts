@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
+import { getAI, getGenerativeModel, getTemplateGenerativeModel, GoogleAIBackend } from "firebase/ai";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -23,3 +23,11 @@ export const ai = getAI(app, { backend: new GoogleAIBackend() });
 export const geminiModel = getGenerativeModel(ai, {
   model: "gemini-2.5-flash",
 });
+
+export const geminiGroundedModel = getGenerativeModel(ai, {
+  model: "gemini-2.5-flash",
+  tools: [{ googleSearch: {} }],
+});
+
+// Server-side prompt templates (Firebase AI Logic)
+export const geminiTemplateModel = getTemplateGenerativeModel(ai);
