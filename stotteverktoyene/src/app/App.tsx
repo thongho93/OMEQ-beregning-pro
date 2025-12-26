@@ -34,6 +34,8 @@ import Chatbot from "../features/kunstigintelligens/Chatbot";
 import { useAuthUser } from "./auth/useAuthUser";
 import ConstructionIcon from "@mui/icons-material/Construction";
 import RekspertPage from "../features/rekspert/RekspertPage";
+import MsalProviderWrapper from "./auth/MsalProviderWrapper";
+import TeamsChatPage from "../features/teamsChat/page/TeamsChatPage";
 
 const SIDEBAR_WIDTH_EXPANDED = 260;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
@@ -256,6 +258,14 @@ function Layout() {
           <Route path="/produktskjema" element={<OfficeFormRedirectPage />} />
           <Route path="/anbrudd" element={<AndbruddPage />} />
           <Route path="/rekspert" element={<RekspertPage />} />
+          <Route
+            path="/teams-chat"
+            element={
+              <MsalProviderWrapper>
+                <TeamsChatPage />
+              </MsalProviderWrapper>
+            }
+          />
           <Route path="*" element={<Navigate to="/omeq" replace />} />
         </Routes>
       </Box>
